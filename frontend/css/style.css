@@ -2314,16 +2314,31 @@ body {
 }
 
 .date-pill-weekend {
-  background: #fff1f2;
-  color: #be123c;
-  border-color: #fecdd3;
+  background: #f0fdf4;
+  color: #047857;
+  border-color: #86efac;
+}
+
+.date-pill-weekend .pill-date-txt::after {
+  content: '休';
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #d97706;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 0 3px;
+  line-height: 1.2;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
 }
 
 .date-pill-weekend:hover {
-  background: #f43f5e;
+  background: #10b981;
   color: #ffffff;
-  border-color: #e11d48;
-  box-shadow: 0 4px 10px rgba(244, 63, 94, 0.35);
+  border-color: #059669;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
 }
 
 .rc-show-more-btn {
@@ -2848,48 +2863,67 @@ body {
 }
 
 /* ==========================================================================
-   核心巡检航线配置模态框样式 (上限30条，删一加一)
+   核心巡检航线配置模态框样式 (现代极简工程质感 · 30条配额管控)
    ========================================================================== */
 .patrol-status-banner {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 16px;
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.patrol-status-banner.is-full {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.patrol-status-banner.is-available {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .patrol-badge-status {
-  background: #047857;
+  display: inline-flex;
+  align-items: center;
+  background: #0284c7;
   color: #ffffff;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: 12px;
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: 0.74rem;
+  font-weight: 700;
   letter-spacing: 0.3px;
+  transition: all 0.2s ease;
 }
 
-.patrol-badge-status.is-available {
-  background: #0284c7;
+.patrol-badge-status.status-full {
+  background: #dc2626;
+}
+
+.patrol-badge-status.status-avail {
+  background: #059669;
 }
 
 .patrol-deck-box {
-  background: #f8fafc;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 14px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
   margin-bottom: 16px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .patrol-deck-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 6px;
 }
@@ -2897,73 +2931,120 @@ body {
 .patrol-routes-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 10px;
   max-height: 220px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.patrol-routes-grid::-webkit-scrollbar {
+  width: 5px;
+}
+
+.patrol-routes-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.patrol-routes-grid::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.patrol-routes-grid::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .patrol-route-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   background: #ffffff;
   color: var(--text-primary);
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 4px 8px 4px 10px;
-  font-size: 0.78rem;
-  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 5px 8px 5px 8px;
+  font-size: 0.8rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
 .patrol-route-pill:hover {
-  border-color: #94a3b8;
-  background: #f1f5f9;
+  border-color: #38bdf8;
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.1);
 }
 
-.patrol-route-del {
+.patrol-route-idx {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.patrol-route-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.patrol-route-name .route-sep {
+  color: var(--accent-cyan);
+  font-size: 0.74rem;
+  opacity: 0.8;
+}
+
+.patrol-route-remove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: transparent;
+  background: #f1f5f9;
   color: #94a3b8;
   border: none;
   font-size: 0.95rem;
   line-height: 1;
   cursor: pointer;
   transition: all 0.15s ease;
+  padding: 0;
 }
 
-.patrol-route-del:hover {
+.patrol-route-remove:hover {
   background: #fee2e2;
   color: #ef4444;
+  transform: scale(1.15);
 }
 
 .patrol-add-card {
   background: #ffffff;
-  border: 1px dashed #cbd5e1;
-  border-radius: var(--radius-md);
-  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
   transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .patrol-add-card.is-locked {
   background: #f8fafc;
-  border-style: solid;
   border-color: #e2e8f0;
-  opacity: 0.8;
 }
 
 .patrol-add-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 6px;
 }
@@ -2971,11 +3052,11 @@ body {
 .patrol-add-title {
   font-weight: 700;
   color: var(--text-primary);
-  font-size: 0.85rem;
+  font-size: 0.86rem;
 }
 
 .patrol-add-tip {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: #dc2626;
   font-weight: 600;
 }
@@ -2986,16 +3067,100 @@ body {
 
 .patrol-add-controls {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
 }
 
+.patrol-select-field {
+  flex: 1;
+  min-width: 160px;
+  position: relative;
+}
+
 .patrol-label {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 600;
   color: var(--text-secondary);
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+}
+
+.patrol-direction-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 38px;
+  color: var(--accent-cyan);
+  font-size: 0.95rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.patrol-add-btn-wrap {
+  flex-shrink: 0;
+}
+
+#btnAddPatrolRoute {
+  height: 38px;
+  padding: 0 18px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 弹窗内 CustomSelect 的深度样式与置灰 */
+#modalPatrolConfig .cs-dropdown {
+  z-index: 10020;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+}
+
+.custom-select-wrapper.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.custom-select-wrapper.is-disabled .cs-trigger {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  color: #94a3b8 !important;
+}
+
+/* 深色模式适配 */
+[data-theme="navy"] .patrol-deck-box,
+[data-theme="gold"] .patrol-deck-box {
+  background: rgba(15, 23, 42, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="navy"] .patrol-route-pill,
+[data-theme="gold"] .patrol-route-pill {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+[data-theme="navy"] .patrol-route-idx,
+[data-theme="gold"] .patrol-route-idx {
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
+[data-theme="navy"] .patrol-add-card,
+[data-theme="gold"] .patrol-add-card {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="navy"] .patrol-status-banner,
+[data-theme="gold"] .patrol-status-banner {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 

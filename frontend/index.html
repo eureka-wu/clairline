@@ -316,33 +316,54 @@
         </div>
       </div>
 
-      <!-- 添加新航线联动选择栏 (满额时自动置灰锁定) -->
+      <!-- 添加新航线联动选择栏 (支持打字搜索与直飞联动，满额时自动锁定) -->
       <div class="patrol-add-card" id="patrolAddCard">
         <div class="patrol-add-header">
-          <span class="patrol-add-title">添加新巡检航线</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="patrol-add-title">添加新巡检航线</span>
+            <span class="badge-hangzhou" style="background: rgba(2, 132, 199, 0.08); color: var(--accent-cyan); font-size: 0.7rem; padding: 1px 6px;">可打字/拼音秒搜</span>
+          </div>
           <span id="patrolAddTip" class="patrol-add-tip">席位已满，请先点击上方已有航线的 × 移除一条</span>
         </div>
         <div class="patrol-add-controls">
-          <div style="flex: 1; min-width: 130px;">
+          <div class="patrol-select-field">
             <label class="patrol-label">出发城市</label>
-            <select id="patrolSelectFrom" class="custom-select-native" style="width: 100%;">
-              <!-- 动态填充 -->
-            </select>
+            <div id="patrolFromMount"></div>
           </div>
-          <div style="display: flex; align-items: center; padding-top: 18px; color: var(--text-muted); font-size: 0.95rem;">
-            ➔
+          <div class="patrol-direction-arrow">
+            <span>➔</span>
           </div>
-          <div style="flex: 1; min-width: 130px;">
-            <label class="patrol-label">到达城市 (直飞)</label>
-            <select id="patrolSelectTo" class="custom-select-native" style="width: 100%;">
-              <!-- 随出发城市联动填充 -->
-            </select>
+          <div class="patrol-select-field">
+            <label class="patrol-label">到达城市 (直飞可选)</label>
+            <div id="patrolToMount"></div>
           </div>
-          <div style="padding-top: 18px;">
-            <button id="btnAddPatrolRoute" class="btn-primary" style="padding: 6px 16px; font-size: 0.82rem; white-space: nowrap;">
+          <div class="patrol-add-btn-wrap">
+            <button id="btnAddPatrolRoute" class="btn-primary" type="button">
               加入巡检
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- 手动巡检触发与进度指示器 (启动后先不自动巡检，全凭用户手动按需触发) -->
+      <div class="patrol-manual-panel" style="margin-top: 16px; padding: 12px 14px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 200px;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+              <span>手动执行巡检</span>
+              <span id="patrolRunningIndicator" class="badge-hangzhou" style="background: #e2e8f0; color: #475569; font-size: 0.7rem; padding: 1px 6px;">待命静默中</span>
+            </div>
+            <div id="patrolStatusText" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+              系统平时绝不主动发包；点击右侧按钮将在后台按 4.5秒/条 慢速拟人巡检所选名单 (耗时约 2~3 分钟)
+            </div>
+          </div>
+          <button id="btnTriggerPatrol" class="btn-primary" style="padding: 7px 16px; font-size: 0.82rem; background: linear-gradient(135deg, #0284c7, #0369a1); display: inline-flex; align-items: center; gap: 6px;">
+            <span id="iconTriggerBtn"></span> 立即开始巡检 (慢速安全)
+          </button>
+        </div>
+        <!-- 动态进度条 -->
+        <div id="patrolProgressBarWrap" style="display: none; margin-top: 10px; background: rgba(0,0,0,0.08); height: 6px; border-radius: 3px; overflow: hidden;">
+          <div id="patrolProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7, #10b981); transition: width 0.3s ease;"></div>
         </div>
       </div>
 

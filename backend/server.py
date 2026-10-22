@@ -17,14 +17,22 @@ if hasattr(sys.stdout, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception: pass
 
-from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
-from scheduler import MonitorScheduler
-
-PORT = 3000
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BACKEND_DIR.parent
 FRONTEND_DIR = PROJECT_DIR / "frontend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
+import auto_patrol
+import threading
+import db
+from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
+from scheduler import MonitorScheduler
+
+# 初始化本地 SQLite 数据库
+db.init_db()
+
+PORT = 3000
 client = SecCardClient()
 scheduler = MonitorScheduler(client)
 
@@ -32,13 +40,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(FRONTEND_DIR), **kwargs)
 
+    def handle_one_request(self):
+        try:
+            return super().handle_one_request()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            sys.stdout.flush()
+
     def address_string(self):
-        # 禁用反向 DNS 解析，彻底消除 Windows 下 getfqdn 导致的数秒至数十秒卡顿
-        return self.client_address[0]
+        try:
+            return self.client_address[0]
+        except Exception:
+            return "127.0.0.1"
 
     def log_message(self, format, *args):
-        # 控制台即时日志刷新
-        sys.stdout.write(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]} {args[1]}\n")
+        try:
+            msg = format % args
+        except Exception:
+            msg = " ".join(str(a) for a in args) if args else format
+        sys.stdout.write(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
         sys.stdout.flush()
 
     def end_headers(self):
@@ -83,7 +104,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             raw_to = qs.get("to", [""])[0]
             date_str = qs.get("date", [""])[0] or datetime.now().strftime("%Y-%m-%d")
 
-            # 尝试通过 IATA_CITY 还原标准城市名
             frm = IATA_CITY.get(raw_from, raw_from)
             to = IATA_CITY.get(raw_to, raw_to)
 
@@ -93,6 +113,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 flights = client.search_flights(frm, to, date_str)
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # 核心功能：每次查验结果 (如 17:25查) 自动持久化落库
+                try:
+                    db.save_seat_query_result(frm, to, date_str, flights)
+                except Exception as ex:
+                    print(f"⚠️ 查验记录落库提示: {ex}")
+
                 self.send_json({
                     "ok": True, 
                     "from": frm, 
@@ -100,23 +126,49 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     "date": date_str, 
                     "flights": flights,
                     "count": len(flights),
-                    "queryTime": now_str
+                    "queryTime": now_str,
+                    "savedToDb": True
                 })
             except Exception as e:
                 self.send_json({"ok": False, "error": str(e)}, 500)
             return
 
-        elif path == "/api/calendar":
+        elif path == "/api/seat-cache":
+            # 从数据库读取该航线所有已被查验过的记录 (如 17:25查)
             frm = qs.get("from", [""])[0]
             to = qs.get("to", [""])[0]
             if not frm or not to:
                 self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
                 return
-            try:
-                cal = client.get_calendar(frm, to)
-                self.send_json({"ok": True, "from": frm, "to": to, "calendar": cal})
-            except Exception as e:
-                self.send_json({"ok": False, "error": str(e)}, 500)
+            records = db.get_seat_queries_for_route(frm, to)
+            self.send_json({"ok": True, "from": frm, "to": to, "cache": records})
+            return
+
+        elif path == "/api/calendar":
+            # 用户核心需求：接口返回时候 这些如 14、21号没票的彻底不用返回，只返回纯净有票出行日
+            frm = qs.get("from", [""])[0]
+            to = qs.get("to", [""])[0]
+            if not frm or not to:
+                self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
+                return
+
+            dates = db.get_available_dates(frm, to)
+            # 若库中暂无且有抓包凭据，实时拉取并增量入库
+            if not dates and client.headers:
+                try:
+                    cal = client.get_calendar(frm, to)
+                    db.save_route_calendar(frm, to, cal)
+                    dates = db.get_available_dates(frm, to)
+                except Exception:
+                    pass
+
+            self.send_json({
+                "ok": True, 
+                "from": frm, 
+                "to": to, 
+                "availableDates": dates,  # 仅包含有票出行日，无票日已被数据库严格过滤
+                "count": len(dates)
+            })
             return
 
         elif path == "/api/destinations":
@@ -142,14 +194,31 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/hot-routes":
-            hot_file = BACKEND_DIR / "data" / "hot_routes.json"
-            routes = []
-            if hot_file.exists():
-                try:
-                    routes = json.loads(hot_file.read_text(encoding="utf-8"))
-                except Exception:
-                    routes = []
+            # 从 SQLite 数据库读取巡检航线配置
+            routes = db.get_patrol_routes()
             self.send_json({"ok": True, "routes": routes, "count": len(routes), "max": 30})
+            return
+
+        elif path == "/api/patrol/status":
+            self.send_json({"ok": True, "state": auto_patrol.PATROL_STATE})
+            return
+
+        elif path == "/api/available-routes":
+            # 用户核心需求：彻底由数据库动态返回大盘数据，替换前端原本读取静态 json 的方案
+            dto = db.get_available_routes_dto()
+            dto["seatCache"] = db.get_all_seat_cache()
+            self.send_json(dto)
+            return
+
+        elif path == "/api/patrol/config":
+            configs = db.get_patrol_config()
+            self.send_json({"ok": True, "config": configs})
+            return
+
+        elif path == "/api/patrol/logs":
+            # 查询数据库中的巡检流水
+            logs = db.get_recent_patrol_logs(50)
+            self.send_json({"ok": True, "logs": logs, "count": len(logs)})
             return
 
         # ----------------------------- 静态资源交给标准库原生高并发流式分发
@@ -204,9 +273,44 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if frm and to and (frm, to) not in seen:
                         seen.add((frm, to))
                         cleaned_routes.append([frm, to])
-            hot_file = BACKEND_DIR / "data" / "hot_routes.json"
-            hot_file.write_text(json.dumps(cleaned_routes, ensure_ascii=False, indent=2), encoding="utf-8")
+            # 持久化写入 SQLite 数据库
+            db.set_patrol_routes(cleaned_routes)
             self.send_json({"ok": True, "routes": cleaned_routes, "count": len(cleaned_routes), "max": 30})
+            return
+
+        elif path == "/api/patrol/config":
+            cfg = body.get("config", {})
+            if isinstance(cfg, dict) and cfg:
+                db.update_patrol_config(cfg)
+                self.send_json({"ok": True, "message": "巡检规则已成功落库更新", "config": db.get_patrol_config()})
+            else:
+                self.send_json({"ok": False, "error": "config 必须为非空键值对对象"}, 400)
+            return
+
+        elif path == "/api/patrol/trigger":
+            if auto_patrol.PATROL_STATE.get("running"):
+                self.send_json({"ok": False, "error": "当前已有巡检任务正在进行中，请等待完成"}, 400)
+                return
+            if not client.headers:
+                client.load_credentials()
+            if not client.headers:
+                self.send_json({
+                    "ok": False,
+                    "error": "未能在 backend/data/ 目录下检测到有效的 cl.saz 凭证文件！请先放置抓包凭证再执行巡检。"
+                }, 400)
+                return
+
+            def patrol_worker():
+                try:
+                    auto_patrol.run_patrol_cycle(client, mode="hot")
+                except Exception as ex:
+                    print(f"⚠️ 手动巡检异常: {ex}")
+                    auto_patrol.PATROL_STATE["running"] = False
+                    auto_patrol.PATROL_STATE["status_text"] = f"巡检中断: {ex}"
+
+            t = threading.Thread(target=patrol_worker, daemon=True)
+            t.start()
+            self.send_json({"ok": True, "message": "已成功启动 Top 30 慢速拟人巡检 (耗时约2~3分钟)，请查看实时进度"})
             return
 
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
@@ -229,7 +333,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
 def run():
     # 保持调度监控引擎纯待命状态，绝不随服务启动自动跑轮询 (避免打扰官方接口与后台偷跑)
-    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), AppHandler)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), AppHandler)
     print("\n=======================================================")
     print(f"✈️ 长龙航空畅飞卡前后端统一服务已启动！")
     print(f"🌐 本地访问地址: http://localhost:{PORT}")

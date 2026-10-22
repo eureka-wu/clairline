@@ -175,7 +175,21 @@ export class CustomSelect {
     this.renderOptionsList();
   }
 
+  setDisabled(disabled) {
+    this.disabled = !!disabled;
+    if (this.triggerBtn) {
+      this.triggerBtn.disabled = this.disabled;
+      if (this.disabled) {
+        this.close();
+        this.wrapper?.classList.add('is-disabled');
+      } else {
+        this.wrapper?.classList.remove('is-disabled');
+      }
+    }
+  }
+
   open() {
+    if (this.disabled) return;
     // 关闭页面上其他所有下拉
     document.querySelectorAll('.cs-dropdown').forEach(d => {
       if (d !== this.dropdown) d.style.display = 'none';

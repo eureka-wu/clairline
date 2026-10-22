@@ -18,15 +18,12 @@ if hasattr(sys.stdout, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception: pass
 
+import db
 from seccard_client import SecCardClient, CITY_IATA
 
 BACKEND_DIR = Path(__file__).resolve().parent
 DATA_DIR = BACKEND_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-TASKS_FILE = DATA_DIR / "monitor_tasks.json"
-HISTORY_FILE = DATA_DIR / "sync_history.json"
-CACHE_FILE = DATA_DIR / "flights_cache.json"
 
 class MonitorScheduler:
     def __init__(self, client: SecCardClient):
@@ -36,49 +33,48 @@ class MonitorScheduler:
         self.thread: threading.Thread | None = None
         self.tasks: list[dict] = self.load_tasks()
         self.history: list[dict] = self.load_history()
-        self.cache: dict = self.load_cache()
+        self.cache: dict = {}
         self.last_sync_time: str = ""
         self.last_sync_status: str = "空闲就绪"
 
     def load_tasks(self) -> list[dict]:
-        if TASKS_FILE.exists():
-            try: return json.loads(TASKS_FILE.read_text(encoding="utf-8"))
-            except Exception: pass
-        # 预置默认核心监控任务
-        default_tasks = [
-            {"id": "1", "from": "杭州", "to": "北京", "date": "2026-10-28", "status": "监控中", "lastCheck": "未同步", "stock": "待获取"},
-            {"id": "2", "from": "杭州", "to": "阿勒泰", "date": "2026-10-26", "status": "监控中", "lastCheck": "未同步", "stock": "待获取"}
-        ]
-        self.save_tasks(default_tasks)
-        return default_tasks
+        try:
+            return db.get_monitor_tasks()
+        except Exception:
+            return []
 
     def save_tasks(self, tasks: list[dict]):
         self.tasks = tasks
-        TASKS_FILE.write_text(json.dumps(tasks, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            db.save_monitor_tasks(tasks)
+        except Exception:
+            pass
 
     def load_history(self) -> list[dict]:
-        if HISTORY_FILE.exists():
-            try: return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-            except Exception: pass
-        return []
+        try:
+            return db.get_monitor_history(50)
+        except Exception:
+            return []
 
     def log_sync(self, target: str, status: str, detail: str, is_change: bool = False):
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         entry = {
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "time": now_str,
             "target": target,
             "status": status,
             "detail": detail,
             "isChange": is_change
         }
         self.history.insert(0, entry)
-        if len(self.history) > 100:  # 保留最新 100 条
+        if len(self.history) > 100:
             self.history = self.history[:100]
-        HISTORY_FILE.write_text(json.dumps(self.history, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            summary = f"[{target}] {status}: {detail}"
+            db.add_monitor_history(now_str, status, summary)
+        except Exception:
+            pass
 
     def load_cache(self) -> dict:
-        if CACHE_FILE.exists():
-            try: return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-            except Exception: pass
         return {}
 
     def save_cache(self, key: str, data: any):
@@ -87,7 +83,6 @@ class MonitorScheduler:
             "timestamp": int(time.time()),
             "data": data
         }
-        CACHE_FILE.write_text(json.dumps(self.cache, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def add_task(self, from_city: str, to_city: str, date_str: str) -> dict:
         task_id = str(int(time.time() * 1000))[-6:]

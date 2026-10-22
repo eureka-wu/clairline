@@ -76,21 +76,28 @@ function initAvailableRoutesData() {
     updateTicketStatusBanner(window.AVAILABLE_ROUTES_DATA);
   }
 
-  // 尝试 fetch 静态 JSON (如果通过本地静态服务器或 Web 运行)
-  fetch('data/available_routes.json')
+  // 核心架构：全面通过后端 SQLite 数据库动态 API /api/available-routes 获取大盘与在库查验流水
+  fetch('/api/available-routes')
     .then(res => res.json())
     .then(data => {
-      if (data && data.routes) {
+      if (data && data.routes && data.routes.length > 0) {
         window.AVAILABLE_ROUTES_DATA = data;
         AVAILABLE_ROUTES_MAP = {};
         data.routes.forEach(r => {
           AVAILABLE_ROUTES_MAP[`${r.from}-${r.to}`] = r;
         });
+        // 自动将后端数据库已落库的实时查验流水（如 17:25查）同步至前端缓存
+        if (data.seatCache && typeof data.seatCache === 'object') {
+          window.LIVE_QUERY_CACHE = window.LIVE_QUERY_CACHE || {};
+          Object.assign(window.LIVE_QUERY_CACHE, data.seatCache);
+        }
         updateTicketStatusBanner(data);
         renderDirectRoutes();
       }
     })
-    .catch(() => {});
+    .catch(err => {
+      console.warn('获取数据库放票大盘接口异常:', err);
+    });
 }
 
 function updateTicketStatusBanner(data) {
@@ -106,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAvailableRoutesData();
   initCustomSelects();
   initFeeConfigModal();
+  initPatrolConfigModal();
   initFliggyGuideModal();
   initTabNavigation();
 
@@ -143,6 +151,8 @@ function injectSvgIcons() {
 
   setHtml('iconLogo', ICONS.plane);
   setHtml('iconSettings', ICONS.settings);
+  setHtml('iconRadar', ICONS.radar);
+  setHtml('iconModalRadar', ICONS.radar);
   setHtml('iconArrowTransfer', ICONS.arrowRight);
   setHtml('iconZap', ICONS.zap);
   setHtml('iconDices', ICONS.dices);
@@ -573,6 +583,406 @@ function initFeeConfigModal() {
     renderDirectRoutes();
     renderCalculator();
   });
+}
+
+/**
+ * 核心巡检航线配置模态框 (上限30条，删一个才能加一个，城市级联直飞，支持保存到后端)
+ */
+const DEFAULT_HOT_ROUTES = [
+  ["杭州", "阿勒泰"], ["杭州", "喀什"], ["杭州", "克拉玛依"], ["杭州", "西双版纳"],
+  ["杭州", "丽江"], ["杭州", "三亚"], ["杭州", "海口"], ["杭州", "哈尔滨"],
+  ["杭州", "长春"], ["杭州", "成都"], ["杭州", "重庆"], ["杭州", "广州"],
+  ["杭州", "深圳"], ["杭州", "珠海"], ["杭州", "贵阳"], ["杭州", "昆明"],
+  ["杭州", "乌鲁木齐"], ["杭州", "西宁"], ["杭州", "银川"], ["杭州", "大连"],
+  ["杭州", "沈阳"], ["杭州", "海拉尔"], ["银川", "杭州"], ["银川", "乌鲁木齐"],
+  ["银川", "喀什"], ["银川", "三亚"], ["银川", "广州"], ["长春", "杭州"],
+  ["长春", "三亚"], ["长春", "成都"]
+];
+
+const PATROL_STORAGE_KEY = 'changlong_custom_patrol_routes_v1';
+
+function initPatrolConfigModal() {
+  const modal = document.getElementById('modalPatrolConfig');
+  const btnOpen = document.getElementById('btnOpenPatrolConfig');
+  const btnClose = document.getElementById('btnClosePatrolModal');
+  const btnCancel = document.getElementById('btnCancelPatrolConfig');
+  const btnReset = document.getElementById('btnResetPatrolConfig');
+  const btnSave = document.getElementById('btnSavePatrolConfig');
+
+  const btnLabel = document.getElementById('patrolConfigBtnLabel');
+  const badgeStatus = document.getElementById('patrolSlotsBadge');
+  const slotsDesc = document.getElementById('patrolSlotsDesc');
+  const listCount = document.getElementById('patrolListCount');
+  const routesGrid = document.getElementById('patrolRoutesGrid');
+
+  const addCard = document.getElementById('patrolAddCard');
+  const addTip = document.getElementById('patrolAddTip');
+  const btnAdd = document.getElementById('btnAddPatrolRoute');
+  const statusBanner = document.querySelector('.patrol-status-banner');
+
+  if (!modal || !btnOpen) return;
+
+  const MAX_SLOTS = 30;
+  let currentRoutes = [...DEFAULT_HOT_ROUTES];
+  let csPatrolFromInstance = null;
+  let csPatrolToInstance = null;
+
+  const updateHeaderDisplay = () => {
+    if (btnLabel) {
+      btnLabel.textContent = `巡检航线: ${currentRoutes.length}/${MAX_SLOTS}`;
+    }
+  };
+
+  // 从本地 localStorage 或后端 API 同步当前配置
+  const syncFromServer = async () => {
+    try {
+      const res = await fetch('/api/patrol/hot-routes');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.routes) && json.routes.length > 0) {
+          currentRoutes = json.routes.slice(0, MAX_SLOTS);
+          localStorage.setItem(PATROL_STORAGE_KEY, JSON.stringify(currentRoutes));
+        }
+      }
+    } catch (e) {
+      const local = localStorage.getItem(PATROL_STORAGE_KEY);
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            currentRoutes = parsed.slice(0, MAX_SLOTS);
+          }
+        } catch (err) {}
+      }
+    }
+    updateHeaderDisplay();
+  };
+
+  // 根据出发城市构建直飞到达城市的可选项
+  const buildPatrolDestOptions = (originCity) => {
+    const dests = DIRECT_MAP[originCity] || [];
+    if (dests.length === 0) {
+      return [{ value: '', label: '暂无直飞目的地', sublabel: `${originCity}暂无出港航班`, badge: '无直飞', group: '直飞' }];
+    }
+    return dests.map(city => {
+      const meta = CITY_METADATA[city] || {};
+      const region = meta.region || '其他';
+      return {
+        value: city,
+        label: city,
+        sublabel: meta.province || '',
+        badge: '直飞',
+        group: `${originCity} 直飞`
+      };
+    });
+  };
+
+  // 初始化高级定制搜索选择框 (CustomSelect，支持打字和拼音检索)
+  const initCitySelects = () => {
+    const mountFrom = document.getElementById('patrolFromMount');
+    const mountTo = document.getElementById('patrolToMount');
+    if (!mountFrom || !mountTo) return;
+
+    if (csPatrolFromInstance && csPatrolToInstance) return;
+
+    const origins = Object.keys(DIRECT_MAP).filter(city => (DIRECT_MAP[city] || []).length > 0);
+    origins.sort((a, b) => (DIRECT_MAP[b] || []).length - (DIRECT_MAP[a] || []).length);
+
+    const fromOptions = origins.map(city => {
+      const count = (DIRECT_MAP[city] || []).length;
+      const meta = CITY_METADATA[city] || {};
+      let group = '其他通航城市';
+      if (city === '杭州') group = '核心大本营 (Tier 1)';
+      else if (city === '银川' || city === '长春') group = '区域核心主枢纽';
+      else if (count >= 8) group = '重点枢纽与基地';
+
+      return {
+        value: city,
+        label: city,
+        sublabel: meta.province || '',
+        badge: `${count}直飞`,
+        group
+      };
+    });
+
+    const defaultFrom = '杭州';
+    const initialDestOptions = buildPatrolDestOptions(defaultFrom);
+
+    csPatrolFromInstance = new CustomSelect({
+      container: '#patrolFromMount',
+      options: fromOptions,
+      value: defaultFrom,
+      placeholder: '打字或拼音搜索出发地',
+      searchable: true,
+      onChange: (val) => {
+        const nextDestOpts = buildPatrolDestOptions(val);
+        const nextDefaultDest = nextDestOpts[0]?.value || '';
+        csPatrolToInstance.setOptions(nextDestOpts, nextDefaultDest);
+      }
+    });
+
+    csPatrolToInstance = new CustomSelect({
+      container: '#patrolToMount',
+      options: initialDestOptions,
+      value: initialDestOptions[0]?.value || '',
+      placeholder: '搜索/选择直飞目的地',
+      searchable: true
+    });
+  };
+
+  // 渲染 30 槽位已选列表与满额锁定控制（删一个才能加一个）
+  const renderList = () => {
+    const len = currentRoutes.length;
+    if (listCount) listCount.textContent = len;
+
+    const isFull = len >= MAX_SLOTS;
+
+    // 顶部状态栏与 Badge 状态
+    if (statusBanner) {
+      if (isFull) {
+        statusBanner.className = 'patrol-status-banner is-full';
+      } else {
+        statusBanner.className = 'patrol-status-banner is-available';
+      }
+    }
+
+    if (badgeStatus) {
+      if (isFull) {
+        badgeStatus.className = 'patrol-badge-status status-full';
+        badgeStatus.textContent = `席位: ${len} / ${MAX_SLOTS} 满载`;
+      } else {
+        badgeStatus.className = 'patrol-badge-status status-avail';
+        badgeStatus.textContent = `席位: ${len} / ${MAX_SLOTS} 可添加`;
+      }
+    }
+
+    if (slotsDesc) {
+      if (isFull) {
+        slotsDesc.textContent = '(已达 30 席位上限，删一个方可添加新航线)';
+        slotsDesc.style.color = '#dc2626';
+      } else {
+        slotsDesc.textContent = `(剩余 ${MAX_SLOTS - len} 个空位，可自由添加新航线)`;
+        slotsDesc.style.color = '#059669';
+      }
+    }
+
+    // 添加卡片锁定/置灰控制（满额时禁用）
+    if (addCard) {
+      if (isFull) {
+        addCard.classList.add('is-locked');
+        if (addTip) addTip.textContent = '已达 30 席位上限，请先点击上方已有航线的 × 移除一条释放槽位';
+        if (csPatrolFromInstance) csPatrolFromInstance.setDisabled(true);
+        if (csPatrolToInstance) csPatrolToInstance.setDisabled(true);
+        if (btnAdd) btnAdd.disabled = true;
+      } else {
+        addCard.classList.remove('is-locked');
+        if (addTip) addTip.textContent = `当前剩余 ${MAX_SLOTS - len} 个可用席位，请选择直飞航线后点击添加`;
+        if (csPatrolFromInstance) csPatrolFromInstance.setDisabled(false);
+        if (csPatrolToInstance) csPatrolToInstance.setDisabled(false);
+        if (btnAdd) btnAdd.disabled = false;
+      }
+    }
+
+    // 渲染精致航线 Tag 流
+    if (routesGrid) {
+      if (currentRoutes.length === 0) {
+        routesGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 24px 0;">当前暂无巡检航线，可从下方添加</div>`;
+      } else {
+        routesGrid.innerHTML = currentRoutes.map((r, idx) => {
+          const from = r[0];
+          const to = r[1];
+          return `
+            <div class="patrol-route-pill">
+              <span class="patrol-route-idx">${idx + 1}</span>
+              <span class="patrol-route-name">${from} <span class="route-sep">→</span> ${to}</span>
+              <button type="button" class="patrol-route-remove" data-idx="${idx}" title="移除该航线以腾出席位">&times;</button>
+            </div>
+          `;
+        }).join('');
+
+        // 绑定删除按钮
+        routesGrid.querySelectorAll('.patrol-route-remove').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(btn.getAttribute('data-idx'), 10);
+            if (!isNaN(idx) && idx >= 0 && idx < currentRoutes.length) {
+              const removed = currentRoutes.splice(idx, 1)[0];
+              renderList();
+              showToast(`已移除【${removed[0]} ➔ ${removed[1]}】，腾出 1 个席位`);
+            }
+          });
+        });
+      }
+    }
+  };
+
+  // 添加航线事件
+  if (btnAdd) {
+    btnAdd.addEventListener('click', () => {
+      if (currentRoutes.length >= MAX_SLOTS) {
+        showToast('已达到 30 条席位上限！请先点击已有航线右侧的 × 删一个再添加');
+        return;
+      }
+      const from = csPatrolFromInstance ? csPatrolFromInstance.getValue() : '';
+      const to = csPatrolToInstance ? csPatrolToInstance.getValue() : '';
+      if (!from || !to) {
+        showToast('请选择有效的出发地与目的地');
+        return;
+      }
+      if (from === to) {
+        showToast('出发地与目的地不能相同');
+        return;
+      }
+      const exists = currentRoutes.some(r => r[0] === from && r[1] === to);
+      if (exists) {
+        showToast(`【${from} ➔ ${to}】已在巡检名单中，无需重复添加`);
+        return;
+      }
+      currentRoutes.push([from, to]);
+      renderList();
+      showToast(`已成功添加【${from} ➔ ${to}】`);
+    });
+  }
+
+  // 恢复默认 30 条
+  if (btnReset) {
+    btnReset.addEventListener('click', () => {
+      currentRoutes = [...DEFAULT_HOT_ROUTES];
+      renderList();
+      showToast('已重置为官方推荐 Top 30 核心热门航线');
+    });
+  }
+
+  // 保存配置
+  if (btnSave) {
+    btnSave.addEventListener('click', async () => {
+      if (currentRoutes.length === 0) {
+        showToast('巡检航线列表不能为空！');
+        return;
+      }
+      localStorage.setItem(PATROL_STORAGE_KEY, JSON.stringify(currentRoutes));
+      updateHeaderDisplay();
+
+      try {
+        const res = await fetch('/api/patrol/hot-routes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ routes: currentRoutes })
+        });
+        if (res.ok) {
+          const ret = await res.json();
+          showToast(`巡检航线已成功保存！共 ${ret.count || currentRoutes.length} 条已实时生效`);
+        } else {
+          showToast('已保存到本地配置 (后端服务正在后台同步)');
+        }
+      } catch (err) {
+        showToast('已保存到本地浏览器配置');
+      }
+
+      modal.style.display = 'none';
+    });
+  }
+
+  // 手动触发巡检与实时进度轮询 (平时待命，用户点击才执行)
+  const btnTrigger = document.getElementById('btnTriggerPatrol');
+  const indicator = document.getElementById('patrolRunningIndicator');
+  const statusText = document.getElementById('patrolStatusText');
+  const barWrap = document.getElementById('patrolProgressBarWrap');
+  const bar = document.getElementById('patrolProgressBar');
+
+  let pollTimer = null;
+
+  const updatePatrolProgressUI = (state) => {
+    if (!state) return;
+    const isRunning = state.running;
+    if (indicator) {
+      if (isRunning) {
+        indicator.textContent = '慢速拟人巡检中';
+        indicator.style.background = '#fef3c7';
+        indicator.style.color = '#b45309';
+      } else {
+        indicator.textContent = '待命静默中';
+        indicator.style.background = '#e2e8f0';
+        indicator.style.color = '#475569';
+      }
+    }
+    if (statusText) {
+      statusText.textContent = state.status_text || '待命状态 (无正在运行的巡检任务)';
+    }
+    if (btnTrigger) {
+      btnTrigger.disabled = isRunning;
+      btnTrigger.innerHTML = isRunning 
+        ? `<span class="spin">⏳</span> 巡检执行中 (${state.completed || 0}/${state.total || 30})...` 
+        : `<span>🚀</span> 立即开始巡检 (慢速安全)`;
+    }
+    if (barWrap && bar) {
+      if (isRunning) {
+        barWrap.style.display = 'block';
+        const percent = state.total > 0 ? Math.round((state.completed / state.total) * 100) : 0;
+        bar.style.width = `${percent}%`;
+      } else {
+        barWrap.style.display = 'none';
+        bar.style.width = '0%';
+      }
+    }
+  };
+
+  const pollPatrolStatus = async () => {
+    try {
+      const res = await fetch('/api/patrol/status');
+      if (res.ok) {
+        const json = await res.json();
+        const state = json.state;
+        updatePatrolProgressUI(state);
+        if (state && state.running) {
+          pollTimer = setTimeout(pollPatrolStatus, 2000);
+        } else {
+          pollTimer = null;
+        }
+      }
+    } catch (e) {
+      pollTimer = null;
+    }
+  };
+
+  if (btnTrigger) {
+    btnTrigger.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/patrol/trigger', { method: 'POST' });
+        const json = await res.json();
+        if (res.ok && json.ok) {
+          showToast('已在后台启动慢速拟人巡检 (~4.5秒/条，耗时约2~3分钟)');
+          if (pollTimer) clearTimeout(pollTimer);
+          pollPatrolStatus();
+        } else {
+          showToast(json.error || '启动巡检失败');
+        }
+      } catch (err) {
+        showToast('请求后端巡检接口失败，请检查服务状态');
+      }
+    });
+  }
+
+  // 弹窗开关控制
+  const openModal = () => {
+    initCitySelects();
+    renderList();
+    pollPatrolStatus();
+    modal.style.display = 'flex';
+  };
+  const closeModal = () => {
+    modal.style.display = 'none';
+  };
+
+  btnOpen.addEventListener('click', openModal);
+  if (btnClose) btnClose.addEventListener('click', closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // 首次自同步
+  syncFromServer();
 }
 
 // 2026/2027 冬春航季长龙航空官方排班数据索引表 (支持一对多班次)

@@ -55,25 +55,43 @@ def _resp_json_from(raw: bytes):
 
 class SecCardClient:
     def __init__(self, saz_path: Path | None = None):
-        if saz_path is None:
-            # 自动探测 saz 路径 (优先 cl.saz，兼容 changlong.saz)
-            candidates = [
-                BACKEND_DIR / "data" / "cl.saz",
-                BACKEND_DIR / "data" / "changlong.saz",
-                PROJECT_DIR / "cl.saz",
-                PROJECT_DIR / "changlong.saz",
-                Path.home() / "Desktop" / "cl.saz",
-                Path.home() / "Desktop" / "changlong.saz"
-            ]
-            for c in candidates:
-                if c.exists():
-                    saz_path = c
-                    break
+        self.explicit_saz_path = saz_path
         self.saz_path = saz_path
+        self.last_mtime = 0
         self.headers: dict = {}
         self.template: dict = {}
         self.demo: dict = {}
-        self.load_credentials()
+        self.check_and_reload(force=True)
+
+    def detect_saz_path(self) -> Path | None:
+        if self.explicit_saz_path and self.explicit_saz_path.exists():
+            return self.explicit_saz_path
+        candidates = [
+            BACKEND_DIR / "data" / "cl.saz",
+            BACKEND_DIR / "data" / "changlong.saz",
+            PROJECT_DIR / "cl.saz",
+            PROJECT_DIR / "changlong.saz",
+            Path.home() / "Desktop" / "cl.saz",
+            Path.home() / "Desktop" / "changlong.saz"
+        ]
+        for c in candidates:
+            if c.exists():
+                return c
+        return None
+
+    def check_and_reload(self, force: bool = False):
+        """文件修改热检测：一旦检测到 cl.saz 产生新改动，自动秒级重新解析加载最新凭据"""
+        found = self.detect_saz_path()
+        if not found:
+            return
+        self.saz_path = found
+        try:
+            mtime = self.saz_path.stat().st_mtime
+            if force or mtime != self.last_mtime or not self.headers:
+                self.load_credentials()
+                self.last_mtime = mtime
+        except Exception:
+            pass
 
     def load_credentials(self):
         if not self.saz_path or not self.saz_path.exists():
@@ -92,14 +110,17 @@ class SecCardClient:
             except Exception: continue
             method = pj.get("MethodName", "")
             sname = n.replace("_c.txt", "_s.txt")
-            if method == "secCardSearchFlights" and headers is None:
-                headers = {}
+            if method == "secCardSearchFlights":
+                cur_headers = {}
                 for ln in head.split("\r\n")[1:]:
                     if ":" in ln:
-                        k, v = ln.split(":", 1); headers[k.strip()] = v.strip()
-                params = json.loads(pj["Parameters"])
+                        k, v = ln.split(":", 1); cur_headers[k.strip()] = v.strip()
+                # 优先提取含有有效 Authorization 的最新会话 (支持多次覆盖)
+                if cur_headers.get("Authorization"):
+                    headers = cur_headers
+                    params = json.loads(pj["Parameters"])
                 if sname in z.namelist(): self.demo["flights"] = _resp_json_from(z.read(sname))
-            if method == "getSecCardRedeemedCalendar" and "calendar" not in self.demo and sname in z.namelist():
+            if method == "getSecCardRedeemedCalendar" and sname in z.namelist():
                 try: self.demo["calendar"] = _resp_json_from(z.read(sname))
                 except Exception: pass
         if headers and params:
@@ -107,8 +128,11 @@ class SecCardClient:
             keep = ("Authorization", "NESign", "Cookie", "X-App-Version", "User-Agent", "Referer", "xweb_xhr", "Accept", "Accept-Encoding", "Accept-Language")
             self.headers = {k: headers[k] for k in keep if k in headers}
             self.template = params
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔑 成功装载最新登录凭据 (来自 {self.saz_path.name})")
 
-    def call_api(self, method: str, params: dict):
+    def call_api(self, method: str, params: dict, retry_on_auth_err: bool = True):
+        # 调用前热重载检查
+        self.check_and_reload()
         if not self.headers:
             raise RuntimeError("登录态未就绪：请确保 backend/data/cl.saz 或 changlong.saz 存在并有效")
         body_obj = {
@@ -128,10 +152,21 @@ class SecCardClient:
                 payload = json.loads(raw_bytes.decode("utf-8", "replace"))
         except urllib.error.HTTPError as e:
             if e.code == 403:
-                raise RuntimeError("长龙接口 403 Forbidden：Session 已失效或请求被拦截，请重新在小程序抓包覆盖 saz")
+                # 尝试强制热重载重试一次
+                if retry_on_auth_err:
+                    self.check_and_reload(force=True)
+                    return self.call_api(method, params, retry_on_auth_err=False)
+                raise RuntimeError("长龙接口 403 Forbidden：登录 Session 已失效，请在手机微信重新打开小程序查一次票，导出覆盖 cl.saz 即可恢复")
             raise RuntimeError(f"长龙接口 HTTP 错误: {e.code}")
         except Exception as e:
             raise RuntimeError(f"网络请求失败: {e}")
+
+        if payload.get("ErrorCode") == 100001:
+            # 未登录：尝试强制重载最新 saz 重试一次
+            if retry_on_auth_err:
+                self.check_and_reload(force=True)
+                return self.call_api(method, params, retry_on_auth_err=False)
+            raise RuntimeError("长龙接口未登录 (100001)：微信小程序登录态已过期，请在手机微信点开长龙航空畅飞卡随意查一次票，导出新 cl.saz 覆盖即可立即恢复！")
 
         if payload.get("ErrorCode") != 0:
             raise RuntimeError(f"长龙接口错误 ({payload.get('ErrorCode')}): {payload.get('message')}")
@@ -139,25 +174,19 @@ class SecCardClient:
         return json.loads(res_str) if isinstance(res_str, str) else res_str
 
     def load_routes_index(self, frm_code: str, to_code: str) -> dict:
-        """从 flight-routes.json 索引真实航班号"""
-        candidates = [
-            BACKEND_DIR / "data" / "flight-routes.json",
-            PROJECT_DIR / "backend" / "data" / "flight-routes.json",
-            PROJECT_DIR / "data" / "flight-routes.json",
-            PROJECT_DIR / "flight-routes.json"
-        ]
-        rows = []
-        for p in candidates:
-            if p.exists():
-                try:
-                    rows = json.loads(p.read_text(encoding="utf-8"))
-                    break
-                except Exception: pass
+        """从 SQLite 数据库表 flight_routes 快速索引真实航班号 (无需读取 json 文件)"""
         idx = {}
         fc, tc = IATA_CITY.get(frm_code, frm_code), IATA_CITY.get(to_code, to_code)
-        for r in rows:
-            if r.get("from") == fc and r.get("to") == tc and r.get("flightNo"):
-                idx[(r["depTime"], r["arrTime"][:5])] = r["flightNo"]
+        try:
+            import db
+            conn = db.get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT dep_time, arr_time, flight_no FROM flight_routes WHERE from_city = ? AND to_city = ?", (fc, tc))
+            for r in cur.fetchall():
+                idx[(r["dep_time"], r["arr_time"][:5])] = r["flight_no"]
+            conn.close()
+        except Exception:
+            pass
         return idx
 
     def search_flights(self, frm: str, to: str, date_str: str) -> list[dict]:
