@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-radius="modern">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>长龙航空 · 畅飞卡智能旅行与兑换规划助手</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/available-routes-data.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%230284c7%22 stroke-width=%222%22><path d=%22M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z%22/></svg>">
+</head>
+<body>
+
+  <!-- 顶部导航栏 -->
+  <!-- 顶部精简导航栏 (所有关键概览集成在左上角，彻底释放首屏高度) -->
+  <header class="header-glass" style="padding: 10px 24px; min-height: 52px;">
+    <div class="logo-area" style="gap: 12px; align-items: center;">
+      <div class="logo-badge" id="iconLogo" style="width: 32px; height: 32px;"></div>
+      <div class="logo-text" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <h1 style="font-size: 1.15rem; margin: 0; line-height: 1.2;">长龙航空 · 畅飞卡智能大盘</h1>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="badge-hangzhou" style="font-size: 0.72rem; padding: 2px 8px; margin: 0;">杭州大本营</span>
+          <span style="font-size: 0.75rem; color: var(--text-secondary); background: #f1f5f9; padding: 2px 8px; border-radius: 12px; font-weight: 600;">
+            <strong style="color: var(--accent-cyan);" id="statCityCount">71</strong> 城市 · <strong style="color: var(--accent-cyan);" id="statRouteCount">398</strong> 直飞 · 官方放票动态监控
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
+      <button id="btnOpenPatrolConfig" class="btn-glass" style="padding: 5px 12px; font-size: 0.8rem;">
+        <span id="iconRadar"></span>
+        <span id="patrolConfigBtnLabel">巡检航线: 30/30</span>
+      </button>
+      <button id="btnOpenFeeConfig" class="btn-glass" style="padding: 5px 12px; font-size: 0.8rem;">
+        <span id="iconSettings"></span>
+        <span id="currentFeeLabel">税费: 机建¥50 / 燃油¥90</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <main class="main-container">
+
+
+    <!-- 导航切换 Tab (只保留航线探索与地图探索两大核心模块) -->
+    <nav class="nav-tabs-wrapper">
+      <button class="tab-btn active" data-tab="tab-routes">
+        <span class="tab-icon" data-icon="plane"></span> 航线探索
+      </button>
+      <button class="tab-btn" data-tab="tab-map">
+        <span class="tab-icon" data-icon="compass"></span> 地图探索
+      </button>
+    </nav>
+
+    <!-- TAB 1: 航线探索与往返闭环 -->
+    <section id="tab-routes" class="tab-content active">
+      <div class="glass-panel">
+        <div class="filter-bar">
+          <div class="filter-group">
+            <span class="filter-label">出发地:</span>
+            <!-- 出发地选择器挂载点 -->
+            <div id="csOriginMount"></div>
+
+            <button id="btnSwapCity" class="btn-swap-city" type="button" title="点击互换出发地与目的地">⇄</button>
+
+            <span class="filter-label">目的地:</span>
+            <!-- 目的地选择器挂载点 (解决用户选完出发地后选择具体目的地需求) -->
+            <div id="csDestMount"></div>
+
+            <span class="filter-label" style="margin-left: 6px;">区域:</span>
+            <div id="csRegionMount"></div>
+
+            <!-- 只看有票航线筛选开关 -->
+            <label class="toggle-only-available" title="开启后只展示当前放票有余票的航线">
+              <input type="checkbox" id="toggleOnlyAvailable" checked>
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">仅看有票航线</span>
+            </label>
+          </div>
+          <div class="filter-group" style="align-items:center; gap:12px;">
+            <div class="ticket-status-pill" id="ticketStatusBanner">
+              <span class="pulse-dot"></span>
+              <span id="ticketStatusText">已同步 309 条放票航线</span>
+            </div>
+            <div id="originSummary" style="font-size:0.85rem; color:var(--accent-cyan); font-weight:700;"></div>
+          </div>
+        </div>
+
+        <!-- 航线探索列表容器 -->
+        <div id="routesContainer" class="routes-list-container"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: 地图探索 (全国航网可视化与毛玻璃探层) -->
+    <section id="tab-map" class="tab-content" style="display: none;">
+      <div class="glass-panel map-explorer-panel" style="padding: 0; overflow: hidden; border: none; background: transparent;">
+        <!-- 交互式 SVG 全国航线地图容器 (全幅宏大展开) -->
+        <div class="map-canvas-wrapper" id="mapCanvasWrapper">
+          <!-- 悬浮在地图左上角的一体化半透明控制面板 (解决外层白条占位问题) -->
+          <!-- 悬浮在地图左上角的精简胶囊控制条 -->
+          <div class="map-floating-panel">
+            <div id="csMapCityMount" class="map-select-mount"></div>
+            <button type="button" class="btn-map-zoom text-btn" id="btnMapReset" title="恢复全貌">重置</button>
+          </div>
+
+          <svg id="chinaFlightMapSvg" viewBox="0 0 1000 780" preserveAspectRatio="xMidYMid meet"></svg>
+          
+          <!-- 悬浮微提示 tooltip -->
+          <div id="mapTooltip" class="map-tooltip" style="display:none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: 跨城接驳与高铁中转组合 (逻辑保留供地图探层深度调用) -->
+    <section id="tab-transfer" class="tab-content" style="display: none;">
+      <div class="glass-panel">
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size:1.2rem; font-weight:800; margin-bottom:6px;">跨城接驳与中转规划器</h3>
+          <p style="color:var(--text-secondary); font-size:0.88rem;">
+            出发地直飞航线有限时，本规划器智能计算【高铁 1~2 小时接驳周边超级枢纽】或【前段中转杭州/银川大本营】，轻松解锁新疆、西南与东北长途目的地！
+          </p>
+        </div>
+
+        <div class="filter-bar" style="background: #f8fafc; padding:16px 20px; border-radius:var(--radius-md); border:1px solid var(--border-subtle);">
+          <div class="filter-group">
+            <span class="filter-label">出发地:</span>
+            <div id="csTransferOriginMount"></div>
+
+            <span class="filter-label" style="margin: 0 4px;" id="iconArrowTransfer"></span>
+
+            <span class="filter-label">梦想目的地:</span>
+            <div id="csTransferTargetMount"></div>
+
+            <button id="btnPlanTransfer" class="btn-primary" style="margin-left: 12px;">
+              <span id="iconZap"></span> 智能计算接驳方案
+            </button>
+          </div>
+        </div>
+
+        <!-- 就近高铁圈辐射看板 -->
+        <div id="radiationHubsArea" style="margin-top: 20px; margin-bottom: 24px;"></div>
+
+        <!-- 中转方案结果列表 -->
+        <div id="transferResultsArea"></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: 随便去哪 · 盲盒出行 -->
+    <section id="tab-blindbox" class="tab-content" style="display: none;">
+      <div class="glass-panel">
+        <div class="blindbox-zone">
+          <div class="dice-icon" id="iconDices"></div>
+          <h3 style="font-size:1.6rem; font-weight:800; margin-bottom:8px;">这个周末 / 假期去哪儿？</h3>
+          <p style="color:var(--text-secondary); max-width:580px; margin:0 auto 24px; font-size:0.9rem;">
+            不想为挑选目的地烦恼？只要有时间、有兑换库存，长龙带你走遍大江南北！
+          </p>
+          <div style="display:flex; justify-content:center; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:0.86rem; color:var(--text-secondary); font-weight:600;">出发城市:</span>
+              <div id="csBlindboxOriginMount"></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:0.86rem; color:var(--text-secondary); font-weight:600;">主题偏好:</span>
+              <div id="csBlindboxTagMount"></div>
+            </div>
+            <button id="btnRollBlindbox" class="btn-primary" style="padding:10px 24px; font-size:0.95rem;">
+              <span id="iconDiceBtn"></span> 随机抽取目的地
+            </button>
+          </div>
+
+          <!-- 摇号结果展示卡片 -->
+          <div id="blindboxResult" style="display:none;" class="blindbox-result-card"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: 季节日历 & 5大时段 -->
+    <section id="tab-season" class="tab-content" style="display: none;">
+      <div class="glass-panel">
+        <div style="margin-bottom: 22px;">
+          <h3 style="font-size:1.2rem; font-weight:800; margin-bottom:6px;">畅飞卡（惠飞版）5 大有效出行时段匹配指南</h3>
+          <p style="color:var(--text-secondary); font-size:0.88rem;">
+            惠飞卡精准屏蔽了春运与黄金周。根据长龙航线特征，我们帮您提炼出每个时间窗口的“天花板”目的地！
+          </p>
+        </div>
+        <div id="seasonCardsContainer" style="display:flex; flex-direction:column; gap:20px;"></div>
+      </div>
+    </section>
+
+
+
+    <!-- 全局毛玻璃半透明探层抽屉 (地图点击与列表详情共享) -->
+    <div id="mapDetailDrawer" class="map-frosted-drawer" style="display:none;">
+      <div class="drawer-header">
+        <div class="drawer-route-title" id="drawerRouteTitle">杭州 ➔ 西双版纳</div>
+        <button class="drawer-close-btn" id="btnCloseMapDrawer" onclick="document.getElementById('mapDetailDrawer').style.display='none'" title="关闭探层">&times;</button>
+      </div>
+      <div class="drawer-body" id="drawerBody">
+        <!-- 动态注入：基本航线与时刻信息、近60天可兑日期流、实时余票查询、跨城接驳中转建议 -->
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 飞猪畅飞卡兑换与订票指南弹窗 -->
+  <div id="modalFliggyGuide" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>
+          飞猪畅飞卡（随心飞）兑换与预订操作全指南
+        </h3>
+        <button class="btn-close" id="btnCloseFliggyGuide">&times;</button>
+      </div>
+      <div class="guide-modal-body">
+        <div class="guide-alert-box">
+          <strong>常见困惑解答：为什么在电脑网页上搜不到“长龙畅飞卡”？</strong>
+          <p>阿里飞猪的“随心飞 / 飞行次卡 / 畅飞卡”属于特定航司权益卡产品。根据飞猪平台规则，<strong>卡券购买与兑换入口仅在移动端开放</strong>（飞猪 App 或 淘宝 App），PC 网页端主要提供常规现金机票搜索。因此请按照下方“3 步走”方式兑换！</p>
+        </div>
+
+        <div class="guide-steps-list">
+          <div class="guide-step-item">
+            <div class="step-num">1</div>
+            <div class="step-detail">
+              <strong>第 1 步：在本助手做好航线规划与比价</strong>
+              <p>利用本工具查清直飞航线、有效出行时段、避开屏蔽日，或计算就近高铁接驳规划。</p>
+            </div>
+          </div>
+          <div class="guide-step-item">
+            <div class="step-num">2</div>
+            <div class="step-detail">
+              <strong>第 2 步：打开手机【飞猪 App】或【淘宝 App】</strong>
+              <p>进入右下角<strong>【我的】➔【我的卡券 / 机票卡券】</strong>，即可看到已购买的长龙畅飞卡（惠飞版/钻石版）。</p>
+            </div>
+          </div>
+          <div class="guide-step-item">
+            <div class="step-num">3</div>
+            <div class="step-detail">
+              <strong>第 3 步：点击【去预约 / 立即兑换】锁定机位</strong>
+              <p>选择出发地与目的地，至少提前 3 天预约，支付当期对应阶梯票价与税费（机建+燃油），即可完成出票！</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-links-row">
+          <a href="https://www.fliggy.com/flight/" target="_blank" rel="noopener noreferrer" class="btn-fliggy" style="justify-content:center; flex:1; padding:10px 16px;">
+            打开飞猪国内机票网页端 ↗
+          </a>
+          <a href="https://www.loongair.cn/" target="_blank" rel="noopener noreferrer" class="btn-glass" style="justify-content:center; flex:1;">
+            长龙航空官网 ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 机建燃油配置模态框 -->
+  <div id="modalFeeConfig" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>
+          <span id="iconModalSettings"></span> 国内机建与燃油附加费配置
+        </h3>
+        <button id="btnCloseFeeModal" class="btn-close">&times;</button>
+      </div>
+      <p style="font-size:0.84rem; color:var(--text-secondary); margin-bottom:18px;">
+        民航发改委定期联动调整国内燃油附加费（2026年10月10日起国内航线执行最新标准：800km内燃油 ¥50，800km以上燃油 ¥90，机建 ¥50）。保存后全站税费与花费统计将自动实时重算！
+      </p>
+      <div class="form-group">
+        <label>民航发展基金 (机建费，元/人):</label>
+        <input type="number" id="inputAirportBuild" class="custom-input" style="width:100%;" min="0" max="200" value="50">
+        <span style="font-size:0.74rem; color:var(--text-muted);">通常成人固定为 50 元</span>
+      </div>
+      <div class="form-group">
+        <label>800公里及以下 燃油附加费 (元/人):</label>
+        <input type="number" id="inputFuel800Below" class="custom-input" style="width:100%;" min="0" max="200" value="50">
+        <span style="font-size:0.74rem; color:var(--text-muted);">2026年10月最新标准：50 元/人</span>
+      </div>
+      <div class="form-group">
+        <label>800公里以上 燃油附加费 (元/人):</label>
+        <input type="number" id="inputFuel800Above" class="custom-input" style="width:100%;" min="0" max="200" value="90">
+        <span style="font-size:0.74rem; color:var(--text-muted);">2026年10月最新标准：90 元/人</span>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
+        <button id="btnResetFeeConfig" class="btn-glass">恢复默认</button>
+        <button id="btnSaveFeeConfig" class="btn-primary">保存配置并重算</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 核心巡检航线配置模态框 (上限30条，删一个方可添加一个) -->
+  <div id="modalPatrolConfig" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 660px; width: 92vw;">
+      <div class="modal-header">
+        <h3>
+          <span id="iconModalRadar"></span> 核心巡检航线配置 (最多30条)
+        </h3>
+        <button id="btnClosePatrolModal" class="btn-close">&times;</button>
+      </div>
+
+      <!-- 席位状态提示条 -->
+      <div class="patrol-status-banner">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="patrol-badge-status" id="patrolSlotsBadge">席位: 30 / 30 满载</span>
+          <span style="font-size: 0.78rem; color: #047857;" id="patrolSlotsDesc">(已达上限，删一个方可添加一个)</span>
+        </div>
+        <span style="font-size: 0.74rem; color: #047857;">自动巡检脚本将按此名单实时轮巡</span>
+      </div>
+
+      <!-- 当前航线 Tag 流 -->
+      <div class="patrol-deck-box">
+        <div class="patrol-deck-header">
+          <span style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem;">已选巡检航线 (<span id="patrolListCount">30</span> 条):</span>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">点击每条右侧的 × 即可移除释放槽位</span>
+        </div>
+        <div id="patrolRoutesGrid" class="patrol-routes-grid">
+          <!-- 动态渲染航线 Tag -->
+        </div>
+      </div>
+
+      <!-- 添加新航线联动选择栏 (满额时自动置灰锁定) -->
+      <div class="patrol-add-card" id="patrolAddCard">
+        <div class="patrol-add-header">
+          <span class="patrol-add-title">添加新巡检航线</span>
+          <span id="patrolAddTip" class="patrol-add-tip">席位已满，请先点击上方已有航线的 × 移除一条</span>
+        </div>
+        <div class="patrol-add-controls">
+          <div style="flex: 1; min-width: 130px;">
+            <label class="patrol-label">出发城市</label>
+            <select id="patrolSelectFrom" class="custom-select-native" style="width: 100%;">
+              <!-- 动态填充 -->
+            </select>
+          </div>
+          <div style="display: flex; align-items: center; padding-top: 18px; color: var(--text-muted); font-size: 0.95rem;">
+            ➔
+          </div>
+          <div style="flex: 1; min-width: 130px;">
+            <label class="patrol-label">到达城市 (直飞)</label>
+            <select id="patrolSelectTo" class="custom-select-native" style="width: 100%;">
+              <!-- 随出发城市联动填充 -->
+            </select>
+          </div>
+          <div style="padding-top: 18px;">
+            <button id="btnAddPatrolRoute" class="btn-primary" style="padding: 6px 16px; font-size: 0.82rem; white-space: nowrap;">
+              加入巡检
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部操作按钮 -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:22px; padding-top:14px; border-top:1px solid var(--border-subtle);">
+        <button id="btnResetPatrolConfig" class="btn-glass" style="font-size:0.8rem;">恢复默认 30 条</button>
+        <div style="display:flex; gap:10px;">
+          <button id="btnCancelPatrolConfig" class="btn-glass" style="font-size:0.8rem;">取消</button>
+          <button id="btnSavePatrolConfig" class="btn-primary" style="font-size:0.8rem;">保存配置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

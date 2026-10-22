@@ -1,0 +1,3003 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root, [data-theme="light"] {
+  /* 现代高端清爽航旅风 (Clean Modern Airline Light) */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ffffff;
+  --bg-input: #ffffff;
+  
+  --border-subtle: #e2e8f0;
+  --border-focus: #0284c7;
+  --border-glow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+
+  --accent-cyan: #0284c7;       /* 长龙蓝 / 主题色 */
+  --accent-cyan-light: #e0f2fe;
+  --accent-blue: #0369a1;
+  --accent-emerald: #059669;
+  --accent-emerald-light: #d1fae5;
+  --accent-amber: #d97706;
+  --accent-amber-light: #fef3c7;
+  --accent-rose: #e11d48;
+  --accent-rose-light: #ffe4e6;
+  
+  /* 飞猪官方专属橙色 */
+  --accent-fliggy: #ff5000;
+  --accent-fliggy-hover: #e04400;
+  --accent-fliggy-light: #fff2eb;
+
+  --text-primary: #0f172a;      /* 深深邃灰，最高对比度与清晰度 */
+  --text-secondary: #334155;    /* 舒适正文字色 */
+  --text-muted: #64748b;        /* 辅助说明 */
+  --text-dim: #94a3b8;          /* 占位/轻量标签 */
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  --shadow-subtle: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  --shadow-elevated: 0 12px 35px -8px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.05);
+  --shadow-card-hover: 0 16px 36px -6px rgba(2, 132, 199, 0.12), 0 6px 14px -3px rgba(15, 23, 42, 0.06);
+}
+
+/* 主题变体 1: 极客深空 (Deep Navy) */
+[data-theme="navy"] {
+  --bg-primary: #060913;
+  --bg-secondary: #0c1222;
+  --bg-card: rgba(13, 20, 38, 0.85);
+  --bg-card-hover: rgba(19, 30, 56, 0.95);
+  --bg-input: rgba(8, 13, 26, 0.9);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(56, 189, 248, 0.5);
+  --border-glow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+  --accent-cyan: #38bdf8;
+  --accent-cyan-light: rgba(56, 189, 248, 0.12);
+  --accent-blue: #2563eb;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-dim: #475569;
+  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 12px 35px -8px rgba(0, 0, 0, 0.65);
+}
+
+/* 主题变体 2: 黑金尊享 (Onyx Gold) */
+[data-theme="gold"] {
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-card: rgba(24, 24, 27, 0.85);
+  --bg-card-hover: rgba(39, 39, 42, 0.95);
+  --bg-input: rgba(9, 9, 11, 0.9);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-focus: rgba(251, 191, 36, 0.5);
+  --accent-cyan: #fbbf24;
+  --accent-cyan-light: rgba(251, 191, 36, 0.12);
+  --accent-blue: #d97706;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-dim: #52525b;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
+}
+
+body {
+  background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(at 10% 5%, rgba(2, 132, 199, 0.08) 0px, transparent 40%),
+    radial-gradient(at 90% 12%, rgba(255, 80, 0, 0.05) 0px, transparent 35%),
+    radial-gradient(at 50% 95%, rgba(16, 185, 129, 0.06) 0px, transparent 45%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==============================================================
+   全局高品质现代微型滚动条 (替换 Windows 默认原生长条)
+   ============================================================== */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  transition: all 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(2, 132, 199, 0.7);
+  background-clip: content-box;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+/* ==============================================================
+   顶部优雅玻璃导航栏 (Header)
+   ============================================================== */
+.header-glass {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 12px -2px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="navy"] .header-glass,
+[data-theme="gold"] .header-glass {
+  background: rgba(6, 9, 19, 0.85);
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-badge {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+}
+
+.logo-badge svg {
+  width: 22px;
+  height: 22px;
+}
+
+.logo-text h1 {
+  font-size: 1.18rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.logo-text p {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 飞猪直达专享高亮按钮 */
+.btn-fliggy {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #ff6a00, #ff5000);
+  color: #ffffff !important;
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 14px rgba(255, 80, 0, 0.28);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.btn-fliggy:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 20px rgba(255, 80, 0, 0.38);
+  background: linear-gradient(135deg, #ff7a1a, #ff5000);
+}
+
+.btn-glass {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.84rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="navy"] .btn-glass,
+[data-theme="gold"] .btn-glass {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-glass:hover {
+  background: var(--accent-cyan-light);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  transform: translateY(-1px);
+}
+
+.main-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 12px 20px 60px;
+}
+
+/* ==============================================================
+   顶部极简紧凑 Banner (去空洞、去多余感)
+   ============================================================== */
+.banner-compact {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border-radius: var(--radius-md);
+  padding: 12px 20px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: 0 4px 16px -2px rgba(2, 132, 199, 0.2);
+  color: #ffffff;
+}
+
+.banner-compact-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.banner-compact-left h2 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  margin: 0;
+}
+
+.badge-hangzhou {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.banner-period {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  padding-left: 4px;
+}
+
+.banner-compact-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compact-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.compact-stat .stat-num {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.compact-stat .stat-text {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.compact-stat.highlight {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* ==============================================================
+   官方服务与飞猪快捷入口通道条 (Compact Quick Strip - 去除大卡片多余感)
+   ============================================================== */
+.portal-compact-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.portal-strip-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.portal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: #f8fafc;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.16s ease-in-out;
+}
+
+.portal-pill:hover {
+  background: var(--accent-cyan-light);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+}
+
+.portal-pill.fliggy-pill {
+  background: #fff7f2;
+  border-color: rgba(255, 80, 0, 0.3);
+  color: var(--accent-fliggy);
+}
+
+.portal-pill.fliggy-pill:hover {
+  background: var(--accent-fliggy);
+  color: #ffffff;
+  border-color: var(--accent-fliggy);
+  box-shadow: 0 2px 8px rgba(255, 80, 0, 0.25);
+}
+
+.portal-pill.guide-pill {
+  background: #f0fdf4;
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #15803d;
+}
+
+.portal-pill.guide-pill:hover {
+  background: var(--accent-emerald);
+  color: #ffffff;
+  border-color: var(--accent-emerald);
+}
+
+[data-theme="navy"] .portal-compact-strip,
+[data-theme="gold"] .portal-compact-strip {
+  background: rgba(14, 21, 38, 0.85);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="navy"] .portal-pill,
+[data-theme="gold"] .portal-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+/* ==============================================================
+   导航切换 Tab (Nav Tabs - 极简紧凑无滚动条)
+   ============================================================== */
+.nav-tabs-wrapper {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: var(--radius-md);
+  border: 1px solid #e2e8f0;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.nav-tabs-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Edge 隐藏横向滚动条 */
+}
+
+[data-theme="navy"] .nav-tabs-wrapper,
+[data-theme="gold"] .nav-tabs-wrapper {
+  background: rgba(14, 21, 38, 0.85);
+  border-color: var(--border-subtle);
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  flex: 1;
+}
+
+.tab-btn:hover {
+  color: var(--accent-cyan);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.tab-btn.active {
+  background: #ffffff;
+  color: var(--accent-cyan);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="navy"] .tab-btn.active,
+[data-theme="gold"] .tab-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent-cyan);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.tab-icon {
+  display: flex;
+  align-items: center;
+}
+
+.tab-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ==============================================================
+   玻璃面板容器 (Glass Panel)
+   ============================================================== */
+.glass-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-subtle);
+}
+
+/* 过滤栏 */
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filter-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.btn-swap-city {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 1.05rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.btn-swap-city:hover {
+  background: var(--accent-cyan-light);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  transform: rotate(180deg);
+}
+
+[data-theme="navy"] .btn-swap-city,
+[data-theme="gold"] .btn-swap-city {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.filter-type-pills {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  gap: 2px;
+}
+
+.type-pill {
+  background: transparent;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.16s ease-in-out;
+  white-space: nowrap;
+}
+
+.type-pill:hover {
+  color: var(--accent-cyan);
+}
+
+.type-pill.active {
+  background: #ffffff;
+  color: var(--accent-cyan);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="navy"] .filter-type-pills,
+[data-theme="gold"] .filter-type-pills {
+  background: rgba(14, 21, 38, 0.85);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="navy"] .type-pill.active,
+[data-theme="gold"] .type-pill.active {
+  background: var(--bg-card);
+  color: var(--accent-cyan);
+}
+
+/* ==============================================================
+   航线探索列表（全新现代航线列表与数据表格设计）
+   ============================================================== */
+.routes-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* 列表操作栏 (统计 + 排序工具) */
+.route-list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+}
+
+[data-theme="navy"] .route-list-toolbar,
+[data-theme="gold"] .route-list-toolbar {
+  background: rgba(15, 23, 42, 0.65);
+  border-color: var(--border-subtle);
+}
+
+.route-list-summary-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.route-count-badge {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-light);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+.route-calc-tip {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.route-list-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.sort-btn-group {
+  display: inline-flex;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+[data-theme="navy"] .sort-btn-group,
+[data-theme="gold"] .sort-btn-group {
+  background: var(--bg-card);
+}
+
+.sort-pill-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 5px 11px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.sort-pill-btn:hover {
+  color: var(--accent-cyan);
+  background: rgba(2, 132, 199, 0.08);
+}
+
+.sort-pill-btn.active {
+  background: var(--accent-cyan);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 列表表格主体容器 */
+.route-list-table-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-subtle);
+  display: flex;
+  flex-direction: column;
+}
+
+[data-theme="navy"] .route-list-table-wrapper,
+[data-theme="gold"] .route-list-table-wrapper {
+  background: var(--bg-card);
+}
+
+/* 表头 Header (桌面端) */
+.route-list-header {
+  display: grid;
+  grid-template-columns: 2.2fr 2.3fr 1.1fr 1fr 0.8fr 1.8fr 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #f1f5f9;
+  border-bottom: 1.5px solid var(--border-subtle);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="navy"] .route-list-header,
+[data-theme="gold"] .route-list-header {
+  background: rgba(15, 23, 42, 0.85);
+  color: #94a3b8;
+}
+
+/* 列表主体与行样式 */
+.route-list-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.route-list-row {
+  display: grid;
+  grid-template-columns: 2.2fr 2.3fr 1.1fr 1fr 0.8fr 1.8fr 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  background: #ffffff;
+}
+
+.route-list-row:nth-child(even) {
+  background: #fafbfc;
+}
+
+[data-theme="navy"] .route-list-row,
+[data-theme="gold"] .route-list-row {
+  background: var(--bg-card);
+}
+
+[data-theme="navy"] .route-list-row:nth-child(even),
+[data-theme="gold"] .route-list-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.route-list-row:last-child {
+  border-bottom: none;
+}
+
+.route-list-row:hover {
+  background: var(--accent-cyan-light);
+  transform: translateX(2px);
+}
+
+[data-theme="navy"] .route-list-row:hover,
+[data-theme="gold"] .route-list-row:hover {
+  background: rgba(2, 132, 199, 0.12);
+}
+
+/* 航线列 */
+.r-col-route {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-cities-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.city-from, .city-to {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.route-plane-sep {
+  color: var(--accent-cyan);
+  display: inline-flex;
+  align-items: center;
+}
+
+.route-plane-sep svg {
+  width: 15px;
+  height: 15px;
+}
+
+.route-airports-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.air-sep {
+  font-size: 0.68rem;
+  opacity: 0.6;
+}
+
+.carrier-mini {
+  margin-left: 2px;
+  background: rgba(2, 132, 199, 0.1);
+  color: var(--accent-cyan);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* 执飞航班与计划时刻列 (官方冬春航季真实数据) */
+.r-col-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flight-no-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flight-no-code {
+  font-family: var(--font-mono, 'Plus Jakarta Sans', monospace);
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-light);
+  padding: 1px 7px;
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="navy"] .flight-no-code,
+[data-theme="gold"] .flight-no-code {
+  background: rgba(2, 132, 199, 0.2);
+  border-color: rgba(2, 132, 199, 0.4);
+  color: #38bdf8;
+}
+
+.aircraft-type {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.badge-stopover-direct {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-emerald-light);
+  color: var(--accent-emerald);
+  border: 1px solid rgba(5, 150, 105, 0.25);
+  white-space: nowrap;
+}
+
+.badge-stopover-via {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--radius-xs);
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid rgba(234, 88, 12, 0.35);
+  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.08);
+  white-space: nowrap;
+}
+
+.flight-time-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.time-dep, .time-arr {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.time-arrow {
+  font-size: 0.68rem;
+  color: var(--accent-cyan);
+}
+
+.flight-duration {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 2px;
+}
+
+.flight-freq-sub {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.flight-extra-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-light);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  margin-left: 4px;
+}
+
+/* 航距里程列 */
+.r-col-distance {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.distance-num {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.96rem;
+  color: var(--text-primary);
+}
+
+.distance-num strong {
+  font-weight: 800;
+  color: var(--accent-cyan);
+}
+
+.dist-unit {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.tag-dist {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  font-weight: 700;
+}
+
+.tag-dist.ultra {
+  background: var(--accent-emerald-light);
+  color: var(--accent-emerald);
+  border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.tag-dist.long {
+  background: rgba(2, 132, 199, 0.12);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+/* 税费列 */
+.r-col-tax {
+  display: flex;
+  flex-direction: column;
+}
+
+.tax-num {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--accent-amber);
+}
+
+.tax-currency {
+  font-size: 0.76rem;
+  margin-right: 1px;
+}
+
+.tax-tip {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+/* 区域列 */
+.r-col-region {
+  display: flex;
+  align-items: center;
+}
+
+.region-pill {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: #f1f5f9;
+  border: 1px solid var(--border-subtle);
+  padding: 3px 9px;
+  border-radius: var(--radius-xs);
+}
+
+[data-theme="navy"] .region-pill,
+[data-theme="gold"] .region-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+/* 标签特色列 */
+.r-col-tags {
+  display: flex;
+  align-items: center;
+}
+
+.tag-list-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.mini-tag {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  font-weight: 500;
+}
+
+[data-theme="navy"] .mini-tag,
+[data-theme="gold"] .mini-tag {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+/* 操作列 */
+.r-col-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn-ticket-transfer {
+  background: var(--accent-cyan-light);
+  border: 1px solid rgba(2, 132, 199, 0.3);
+  color: var(--accent-cyan);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.18s ease-in-out;
+  white-space: nowrap;
+}
+
+.btn-ticket-transfer:hover {
+  background: var(--accent-cyan);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+/* 空状态 */
+.route-list-empty {
+  text-align: center;
+  padding: 56px 20px;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+}
+
+[data-theme="navy"] .route-list-empty,
+[data-theme="gold"] .route-list-empty {
+  background: var(--bg-card);
+}
+
+/* 响应式列表处理 (在平板或小屏幕自动转为紧凑列表项) */
+@media (max-width: 960px) {
+  .route-list-header {
+    display: none;
+  }
+
+  .route-list-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .route-list-row:nth-child(even) {
+    background: #ffffff;
+  }
+
+  .route-list-row:hover {
+    transform: none;
+  }
+
+  .r-col-route {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed var(--border-subtle);
+    padding-bottom: 10px;
+  }
+
+
+
+  .r-col-action {
+    justify-content: stretch;
+    margin-top: 6px;
+  }
+
+  .r-col-action .btn-ticket-transfer {
+    width: 100%;
+    padding: 9px 12px;
+  }
+}
+
+/* ==============================================================
+   按钮样式基础 (Buttons)
+   ============================================================== */
+.btn-primary {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: #ffffff;
+  border: none;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.35);
+  background: linear-gradient(135deg, #0369a1, #0284c7);
+}
+
+.tag-badge {
+  background: var(--accent-cyan-light);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+/* ==============================================================
+   🌟 全新高级定制搜索选择框组件 (Custom Combobox)
+   ============================================================== */
+.custom-select-wrapper {
+  position: relative;
+  display: inline-block;
+  user-select: none;
+}
+
+.cs-trigger {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 165px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="navy"] .cs-trigger,
+[data-theme="gold"] .cs-trigger {
+  background: var(--bg-input);
+  border-color: var(--border-subtle);
+}
+
+.cs-trigger:hover {
+  border-color: var(--accent-cyan);
+}
+
+.cs-trigger.active {
+  border-color: var(--accent-cyan);
+  box-shadow: var(--border-glow);
+}
+
+.cs-trigger-content {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-selected-label {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cs-selected-sublabel {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.cs-arrow {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cs-trigger.active .cs-arrow {
+  transform: rotate(180deg);
+  color: var(--accent-cyan);
+}
+
+/* 下拉菜单浮层 */
+.cs-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 260px;
+  max-width: 330px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  box-shadow: 0 14px 35px -4px rgba(15, 23, 42, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  animation: dropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="navy"] .cs-dropdown,
+[data-theme="gold"] .cs-dropdown {
+  background: rgba(14, 21, 38, 0.98);
+  border-color: var(--border-subtle);
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cs-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+[data-theme="navy"] .cs-search-box,
+[data-theme="gold"] .cs-search-box {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.cs-search-icon {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.cs-search-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  outline: none;
+  width: 100%;
+}
+
+.cs-search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.cs-options-list {
+  max-height: 270px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.cs-group-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 8px 4px;
+  letter-spacing: 0.04em;
+}
+
+.cs-option-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.cs-option-item:hover {
+  background: #f0f9ff;
+  color: var(--accent-cyan);
+}
+
+[data-theme="navy"] .cs-option-item:hover,
+[data-theme="gold"] .cs-option-item:hover {
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.cs-option-item.selected {
+  background: var(--accent-cyan-light);
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+.cs-option-badge {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: var(--text-muted);
+}
+
+.cs-option-item.selected .cs-option-badge {
+  background: #ffffff;
+  color: var(--accent-cyan);
+}
+
+/* ==============================================================
+   机场交通出行小抄卡片 (Airport Guides)
+   ============================================================== */
+.airport-region-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.region-pill {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.region-pill:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.region-pill.active {
+  background: var(--accent-cyan);
+  color: #ffffff;
+  border-color: var(--accent-cyan);
+}
+
+.airport-card {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-subtle);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+[data-theme="navy"] .airport-card,
+[data-theme="gold"] .airport-card {
+  background: var(--bg-card);
+}
+
+.airport-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.airport-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.airport-city-title {
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.airport-code-tag {
+  background: #f1f5f9;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.airport-commute-score {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.airport-terminal-info {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: #f8fafc;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+[data-theme="navy"] .airport-terminal-info,
+[data-theme="gold"] .airport-terminal-info {
+  background: rgba(8, 13, 26, 0.6);
+}
+
+.airport-transit-list {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.airport-early-tip {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  padding: 9px 12px;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  color: #92400e;
+  line-height: 1.45;
+  margin-top: auto;
+}
+
+[data-theme="navy"] .airport-early-tip,
+[data-theme="gold"] .airport-early-tip {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fde68a;
+}
+
+/* ==============================================================
+   接驳方案卡片与盲盒卡片
+   ============================================================== */
+.transfer-card {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 22px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-subtle);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="navy"] .transfer-card,
+[data-theme="gold"] .transfer-card {
+  background: var(--bg-card);
+}
+
+.transfer-card:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.transfer-steps-timeline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.timeline-step {
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  min-width: 220px;
+}
+
+[data-theme="navy"] .timeline-step,
+[data-theme="gold"] .timeline-step {
+  background: rgba(8, 13, 26, 0.7);
+}
+
+.step-type {
+  font-size: 0.74rem;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.step-route {
+  font-size: 0.98rem;
+  font-weight: 800;
+  margin-bottom: 3px;
+  color: var(--text-primary);
+}
+
+.step-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.timeline-arrow {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* 接驳方案卡片内的机场特性小抄微条 */
+.transfer-card-airport-notes {
+  background: rgba(2, 132, 199, 0.04);
+  border: 1px dashed rgba(2, 132, 199, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 12px 0 6px 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+[data-theme="navy"] .transfer-card-airport-notes,
+[data-theme="gold"] .transfer-card-airport-notes {
+  background: rgba(2, 132, 199, 0.08);
+  border-color: rgba(2, 132, 199, 0.35);
+}
+
+.tcan-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+
+.tcan-item {
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.tcan-item:last-child {
+  margin-bottom: 0;
+}
+
+.tcan-city-tag {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+[data-theme="navy"] .tcan-city-tag,
+[data-theme="gold"] .tcan-city-tag {
+  background: var(--bg-card);
+}
+
+/* 盲盒摇号专区 */
+.blindbox-zone {
+  text-align: center;
+  padding: 44px 24px;
+  background: radial-gradient(circle at 50% 30%, rgba(2, 132, 199, 0.08), #ffffff 75%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="navy"] .blindbox-zone,
+[data-theme="gold"] .blindbox-zone {
+  background: radial-gradient(circle at 50% 30%, rgba(37, 99, 235, 0.15), rgba(8, 13, 26, 0.8) 75%);
+}
+
+.dice-icon {
+  color: var(--accent-cyan);
+  display: inline-flex;
+  padding: 16px;
+  background: var(--accent-cyan-light);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  border-radius: var(--radius-md);
+  margin-bottom: 18px;
+  animation: pulseDice 3s infinite ease-in-out;
+}
+
+@keyframes pulseDice {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.08) rotate(6deg); }
+}
+
+.blindbox-result-card {
+  max-width: 580px;
+  margin: 28px auto 0;
+  background: #ffffff;
+  border: 2px solid var(--accent-cyan);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: 0 12px 36px -4px rgba(2, 132, 199, 0.2);
+  text-align: left;
+}
+
+/* ==============================================================
+   弹窗 Modal (通用及飞猪兑换指南)
+   ============================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  max-width: 520px;
+  width: 100%;
+  padding: 26px;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.25);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+[data-theme="navy"] .modal-content,
+[data-theme="gold"] .modal-content {
+  background: var(--bg-secondary);
+  border-color: var(--border-subtle);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.modal-header h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.btn-close:hover {
+  color: var(--text-primary);
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.custom-input {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: var(--text-primary);
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+[data-theme="navy"] .custom-input,
+[data-theme="gold"] .custom-input {
+  background: var(--bg-input);
+  border-color: var(--border-subtle);
+}
+
+.custom-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: var(--border-glow);
+}
+
+/* 飞猪弹窗详情样式 */
+.guide-alert-box {
+  background: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-left: 4px solid #ff5000;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  font-size: 0.82rem;
+  color: #9a3412;
+  line-height: 1.5;
+}
+
+.guide-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.guide-step-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #f8fafc;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.step-num {
+  width: 26px;
+  height: 26px;
+  background: #ff5000;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.step-detail strong {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.step-detail p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.guide-links-row {
+  display: flex;
+  gap: 12px;
+}
+
+/* Toast 提示浮条 */
+.app-toast {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-size: 0.84rem;
+  font-weight: 600;
+  box-shadow: 0 10px 28px -4px rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toastFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastFadeIn {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ==============================================================
+   余票大盘与具体可兑换日期标签展示样式
+   ============================================================== */
+.toggle-only-available {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  transition: all 0.2s ease;
+}
+
+.toggle-only-available:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.toggle-only-available input {
+  display: none;
+}
+
+.toggle-switch {
+  width: 28px;
+  height: 16px;
+  background: #cbd5e1;
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.toggle-only-available input:checked + .toggle-switch {
+  background: #10b981;
+}
+
+.toggle-only-available input:checked + .toggle-switch::after {
+  transform: translateX(12px);
+}
+
+.toggle-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.ticket-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulseGreen 2s infinite;
+}
+
+@keyframes pulseGreen {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* 航线列表行内的余票展示列 */
+.r-col-tickets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+}
+
+.ticket-badge-has {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  color: #047857;
+  border: 1px solid #6ee7b7;
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.15);
+}
+
+.ticket-badge-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+/* 航线卡片下方具体日期流式展开条 */
+.route-dates-flow {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.dates-flow-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+  white-space: nowrap;
+}
+
+.date-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+}
+
+.date-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: all 0.15s ease;
+}
+
+.date-chip:hover {
+  background: #22c55e;
+  color: #ffffff;
+  border-color: #16a34a;
+  transform: translateY(-1px);
+}
+
+.date-chip-weekend {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.date-chip-weekend:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+.btn-show-more-dates {
+  background: transparent;
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-decoration: underline;
+}
+
+/* ==============================================================
+   放票大盘 · 现代高级卡片流 (彻底解决表头错位与左右比例失调问题)
+   ============================================================== */
+.route-cards-list-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.route-card-premium {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.route-card-premium:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 10px 28px -6px rgba(2, 132, 199, 0.14);
+  transform: translateY(-2px);
+}
+
+/* 卡片主信息行 (横向舒展自适应) */
+.rc-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* 航线大标题区 */
+.rc-city-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.rc-cities {
+  font-size: 1.32rem;
+  font-weight: 850;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rc-plane-icon {
+  color: var(--accent-cyan);
+  display: inline-flex;
+}
+
+.rc-airports {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 航班与时刻展示区 */
+.rc-flight-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 240px;
+}
+
+.rc-flight-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rc-schedule-time {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-flight-meta {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 右侧核心数据与操作区 */
+.rc-stats-action-block {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.rc-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.rc-stat-val {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.rc-stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* 卡片下半部：近2个月可兑换出行日专区 */
+.rc-dates-deck {
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.75), rgba(240, 253, 250, 0.5));
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rc-dates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rc-dates-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rc-dates-badge {
+  background: #059669;
+  color: #ffffff;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+}
+
+.rc-dates-hint {
+  font-size: 0.76rem;
+  color: #047857;
+  font-weight: 600;
+}
+
+.rc-dates-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  color: #065f46;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.date-pill.is-checked {
+  background: #f0fdf4;
+  border-color: #34d399;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.18);
+}
+
+.pill-check-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.pill-tag-success {
+  background: #059669;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(5, 150, 105, 0.25);
+}
+
+.pill-tag-empty {
+  background: #64748b;
+  color: #ffffff;
+}
+
+.drawer-checked-summary {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.date-pill:hover {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+}
+
+.date-pill-weekend {
+  background: #fff1f2;
+  color: #be123c;
+  border-color: #fecdd3;
+}
+
+.date-pill-weekend:hover {
+  background: #f43f5e;
+  color: #ffffff;
+  border-color: #e11d48;
+  box-shadow: 0 4px 10px rgba(244, 63, 94, 0.35);
+}
+
+.rc-show-more-btn {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #047857;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rc-show-more-btn:hover {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* ==========================================================================
+   地图探索与毛玻璃探层 (Map Explorer & Floating Control Panel)
+   ========================================================================== */
+.map-explorer-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: relative;
+}
+
+/* 地图画布容器 (全屏铺开大图，视野开阔宏大，视口自适应杜绝页面滚动条) */
+.map-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 620px;
+  height: calc(100vh - 142px);
+  background: radial-gradient(circle at 60% 40%, #0d1e3a 0%, #060e1d 100%);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid rgba(2, 132, 199, 0.35);
+  box-shadow: 0 16px 40px -8px rgba(2, 6, 23, 0.5), inset 0 2px 25px rgba(0, 0, 0, 0.6);
+}
+
+/* 浮动在地图左上角的精简胶囊控制条 (极简去多余) */
+.map-floating-panel {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 30;
+  background: rgba(10, 18, 36, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 30px;
+  padding: 5px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.map-select-mount .custom-select-wrapper {
+  display: block;
+}
+
+.map-select-mount .cs-trigger {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f0f9ff;
+  min-width: 190px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: all 0.18s ease;
+}
+
+.map-select-mount .cs-trigger:hover,
+.map-select-mount .cs-trigger.active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+
+.map-select-mount .cs-selected-label {
+  color: #f0f9ff;
+  font-weight: 700;
+}
+
+.map-select-mount .cs-selected-sublabel {
+  color: #94a3b8;
+  font-size: 0.74rem;
+}
+
+.map-select-mount .cs-arrow {
+  color: #94a3b8;
+}
+
+.map-select-mount .cs-dropdown {
+  background: rgba(11, 19, 41, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+  min-width: 280px;
+  z-index: 1000;
+}
+
+.map-select-mount .cs-search-box {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.map-select-mount .cs-search-input {
+  color: #ffffff;
+  font-size: 0.82rem;
+}
+
+.map-select-mount .cs-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.map-select-mount .cs-group-header {
+  color: #38bdf8;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.map-select-mount .cs-option-item {
+  color: #e2e8f0;
+  padding: 7px 10px;
+}
+
+.map-select-mount .cs-option-item:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+}
+
+.map-select-mount .cs-option-item.selected {
+  background: rgba(56, 189, 248, 0.28);
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.map-select-mount .cs-opt-sub {
+  color: #94a3b8;
+}
+
+.map-select-mount .cs-option-badge {
+  background: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.map-legend-glass {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-dot.active {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.legend-dot.hub {
+  background: #fbbf24;
+  box-shadow: 0 0 6px #fbbf24;
+}
+
+#chinaFlightMapSvg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  user-select: none;
+}
+
+#chinaFlightMapSvg.is-dragging {
+  cursor: grabbing !important;
+}
+
+/* 缩放按钮组 */
+.map-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 20px;
+  padding: 2px 6px;
+}
+
+.btn-map-zoom {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #e0f2fe;
+  font-size: 1rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.btn-map-zoom:hover {
+  background: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  transform: scale(1.1);
+}
+
+.btn-map-zoom:active {
+  transform: scale(0.92);
+}
+
+.btn-map-zoom.text-btn {
+  width: auto;
+  border-radius: 12px;
+  padding: 0 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+/* SVG 地理底图背景样式 */
+.map-bg-grid {
+  stroke: rgba(255, 255, 255, 0.035);
+  stroke-width: 0.6;
+}
+
+.map-province-path {
+  fill: rgba(20, 36, 68, 0.45);
+  stroke: rgba(56, 189, 248, 0.22);
+  stroke-width: 0.8;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.map-province-path:hover {
+  fill: rgba(30, 58, 138, 0.65);
+  stroke: rgba(56, 189, 248, 0.55);
+}
+
+.flight-arc {
+  fill: none;
+  stroke: rgba(56, 189, 248, 0.5);
+  stroke-width: 1.3;
+  cursor: pointer;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.flight-arc:hover {
+  stroke: #38bdf8;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px #38bdf8);
+}
+
+.flight-arc.selected {
+  stroke: #fbbf24;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 10px #fbbf24);
+}
+
+.city-point {
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.city-point:hover circle.base-dot {
+  r: 8;
+  fill: #38bdf8;
+  filter: drop-shadow(0 0 8px #38bdf8);
+}
+
+.city-point:hover text {
+  fill: #38bdf8;
+  stroke: rgba(15, 23, 42, 0.98);
+  font-weight: 800;
+}
+
+.city-point text {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  fill: #f8fafc;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  paint-order: stroke fill;
+  stroke: rgba(15, 23, 42, 0.9);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  transition: fill 0.15s ease, font-size 0.15s ease;
+}
+
+.city-point.hub text {
+  font-size: 12px;
+  font-weight: 800;
+  fill: #fef08a;
+  stroke: rgba(15, 23, 42, 0.95);
+  stroke-width: 3px;
+}
+
+.city-point.focused circle.base-dot {
+  fill: #38bdf8;
+  r: 7.5;
+  filter: drop-shadow(0 0 10px #38bdf8);
+}
+
+.city-point.focused text {
+  font-size: 13px;
+  font-weight: 800;
+  fill: #38bdf8;
+  stroke: rgba(15, 23, 42, 0.98);
+  stroke-width: 3.5px;
+}
+
+/* 浮动微提示 Tooltip */
+.map-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -120%);
+  z-index: 40;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   毛玻璃半透明探层抽屉 (Frosted Glass Drawer)
+   ========================================================================== */
+.map-frosted-drawer {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  width: 480px;
+  max-width: calc(100vw - 28px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: var(--radius-lg);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: drawerSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes drawerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: rgba(248, 250, 252, 0.85);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.drawer-route-title {
+  font-size: 1.25rem;
+  font-weight: 850;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  transition: all 0.15s ease;
+}
+
+.drawer-close-btn:hover {
+  color: var(--accent-rose);
+  transform: scale(1.15);
+}
+
+.drawer-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 探层内的各模块 */
+.drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawer-section-title {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawer-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  background: rgba(241, 245, 249, 0.65);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.drawer-stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drawer-stat-val {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.drawer-stat-lbl {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* 探层内日期胶囊流 */
+.drawer-dates-container {
+  background: rgba(236, 253, 245, 0.8);
+  border: 1px solid #86efac;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawer-dates-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* 探层内智能接驳规划卡片 */
+.drawer-transfer-card {
+  background: rgba(254, 243, 199, 0.45);
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-transfer-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.drawer-transfer-detail {
+  font-size: 0.76rem;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   核心巡检航线配置模态框样式 (上限30条，删一加一)
+   ========================================================================== */
+.patrol-status-banner {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.patrol-badge-status {
+  background: #047857;
+  color: #ffffff;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.patrol-badge-status.is-available {
+  background: #0284c7;
+}
+
+.patrol-deck-box {
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.patrol-deck-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.patrol-routes-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.patrol-route-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+.patrol-route-pill:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.patrol-route-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.patrol-route-del:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.patrol-add-card {
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  transition: all 0.2s ease;
+}
+
+.patrol-add-card.is-locked {
+  background: #f8fafc;
+  border-style: solid;
+  border-color: #e2e8f0;
+  opacity: 0.8;
+}
+
+.patrol-add-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.patrol-add-title {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.patrol-add-tip {
+  font-size: 0.74rem;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.patrol-add-card.is-available .patrol-add-tip {
+  color: #059669;
+}
+
+.patrol-add-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.patrol-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+
+
+

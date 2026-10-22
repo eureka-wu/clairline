@@ -1,0 +1,54 @@
+[
+  {
+    "id": "1",
+    "from": "杭州",
+    "to": "北京",
+    "date": "2026-10-28",
+    "status": "异常待重试",
+    "lastCheck": "刚刚 (15:37:00)",
+    "stock": "GJ8887余2、GJ8987余3",
+    "flights": [
+      {
+        "flightNo": "GJ8887",
+        "depTime": "07:00",
+        "arrTime": "09:20",
+        "aircraft": "A321",
+        "redeemPrice": 266.0,
+        "secCardLeft": 2,
+        "normalLeft": 2,
+        "cabinCode": "M"
+      },
+      {
+        "flightNo": "GJ8987",
+        "depTime": "16:00",
+        "arrTime": "18:35",
+        "aircraft": "A321",
+        "redeemPrice": 266.0,
+        "secCardLeft": 3,
+        "normalLeft": 3,
+        "cabinCode": "M"
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "from": "杭州",
+    "to": "阿勒泰",
+    "date": "2026-10-26",
+    "status": "监控中",
+    "lastCheck": "刚刚 (15:37:03)",
+    "stock": "GJ8081余1",
+    "flights": [
+      {
+        "flightNo": "GJ8081",
+        "depTime": "06:50",
+        "arrTime": "14:15",
+        "aircraft": "A320",
+        "redeemPrice": 266.0,
+        "secCardLeft": 1,
+        "normalLeft": 1,
+        "cabinCode": "M"
+      }
+    ]
+  }
+]

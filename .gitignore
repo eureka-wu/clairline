@@ -1,0 +1,39 @@
+# 敏感凭据与抓包文件 (绝对禁止上传)
+cl.saz
+changlong.saz
+*.saz
+backend/data/*.saz
+backend/data/cl.saz
+backend/data/changlong.saz
+*.pcap
+*.har
+*.key
+*.pem
+*.env
+*.env.local
+
+# Python 运行时与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# 日志与临时调试文件
+*.log
+logs/
+temp/
+tmp/
+.temp/
+
+# IDE 与操作系统临时文件
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
