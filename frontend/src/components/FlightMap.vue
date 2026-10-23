@@ -5,7 +5,7 @@
       <el-select 
         :model-value="origin"
         filterable
-        placeholder="搜索出发枢纽..."
+        placeholder="搜索聚焦城市/枢纽..."
         style="width: 210px;"
         class="custom-map-el-select"
         @change="$emit('update:origin', $event)"
@@ -31,24 +31,32 @@
       </button>
     </div>
 
-    <!-- 图例 Legend -->
+    <!-- 悬浮在地图右上角的全屏切换按钮 (仅图标切换，支持 Tooltip 提示) -->
+    <button 
+      type="button" 
+      class="btn-map-fullscreen" 
+      @click="toggleFullscreen" 
+      :title="isFullscreen ? '退出全屏 (ESC)' : '进入全屏大屏沉浸模式'"
+      :aria-label="isFullscreen ? '退出全屏' : '全屏展示'"
+    >
+      <svg v-if="!isFullscreen" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+      </svg>
+      <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+      </svg>
+    </button>
+
+    <!-- 图例 Legend (纯净两档，单一色彩绝不重叠) -->
     <div class="map-legend-card">
       <div style="font-weight:700; font-size:0.75rem; color:#94a3b8; margin-bottom:6px;">航网放票热度图例</div>
       <div class="legend-item">
-        <span class="legend-color" style="background:#38bdf8; box-shadow:0 0 6px #38bdf8;"></span> 
-        可兑 20+ 天 (充裕)
-      </div>
-      <div class="legend-item">
-        <span class="legend-color" style="background:#0284c7;"></span> 
-        可兑 10~19 天 (常态)
+        <span class="legend-color" style="background:#10b981; box-shadow:0 0 6px #10b981;"></span> 
+        近7天有票 / 20+天 (充裕可兑)
       </div>
       <div class="legend-item">
         <span class="legend-color" style="background:#64748b;"></span> 
-        可兑 1~9 天 (紧俏)
-      </div>
-      <div class="legend-item" style="margin-top:4px;">
-        <span class="legend-flow"></span> 
-        7天内近期有票 (流动光效)
+        可兑 1~9 天 (紧俏散票)
       </div>
       <div class="legend-item" style="margin-top:4px; font-size:0.7rem; color:#64748b;">
         🖱️ 滚轮缩放 · 拖拽漫游 · 点击航线查详情
@@ -81,14 +89,7 @@
       @mouseup="handleMouseUp"
       @mouseleave="handleMouseUp"
     >
-      <defs>
-        <!-- 粒子流动光渐变 -->
-        <linearGradient id="flowParticleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0" />
-          <stop offset="70%" stop-color="#38bdf8" stop-opacity="0.8" />
-          <stop offset="100%" stop-color="#ffffff" stop-opacity="1" />
-        </linearGradient>
-      </defs>
+
 
       <!-- 经纬度科技微网格底纹 -->
       <g class="map-bg-grid-group">
@@ -120,18 +121,12 @@
         >
           <!-- 底层透明点击与发光区域 -->
           <path :d="r.pathD" class="route-hit-area" />
-          <!-- 航线彩色核心线条 -->
+          <!-- 航线彩色核心线条 (单一色彩，绝不重叠) -->
           <path 
             :d="r.pathD" 
             :stroke="r.color" 
             :stroke-width="r.width" 
             class="route-core-line" 
-          />
-          <!-- 7天内近期有票流动粒子光效 -->
-          <path 
-            v-if="r.isRecent" 
-            :d="r.pathD" 
-            class="route-flow-particle" 
           />
         </g>
       </g>
@@ -175,7 +170,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue';
 import { CITY_METADATA } from '../data/city-meta.js';
 import { CHINA_PROVINCES } from '../data/china-geo.js';
 
@@ -255,7 +250,8 @@ const filteredRoutes = computed(() => {
   if (props.origin === '全部') {
     return props.availableRoutes;
   }
-  return props.availableRoutes.filter(r => r.from === props.origin);
+  // 用户需求：双向全通——既显示从该城市出发的航线，也显示飞抵该城市的返程/到达航线
+  return props.availableRoutes.filter(r => r.from === props.origin || r.to === props.origin);
 });
 
 // 计算渲染航线及贝塞尔曲线
@@ -273,28 +269,28 @@ const renderedRoutes = computed(() => {
     const dx = x2 - x1;
     const dy = y2 - y1;
     const dist = Math.hypot(dx, dy);
-    // 贝塞尔弧形曲线控制点
+    // 贝塞尔弧形曲线控制点 (去程与返程反向隆起，形成双向航路走廊)
     const cx = (x1 + x2) / 2 - (dy / dist) * Math.min(dist * 0.22, 60);
     const cy = (y1 + y2) / 2 + (dx / dist) * Math.min(dist * 0.22, 60) - 20;
 
     const count = r.availableDaysCount || (r.availableDates ? r.availableDates.length : 0);
-    let color = '#64748b'; // 1~9天 紧俏
-    let width = 1.2;
-    if (count >= 20) {
-      color = '#38bdf8'; // 充裕 高亮青蓝
-      width = 1.8;
-    } else if (count >= 10) {
-      color = '#0284c7'; // 常态 科技天蓝
-      width = 1.5;
-    } else if (count === 0) {
-      color = '#334155'; // 暂无直飞机位
-      width = 0.8;
-    }
 
     // 判断是否在未来 7 天内有票
     let isRecent = false;
     if (r.availableDates && r.availableDates.length > 0) {
       isRecent = r.availableDates.some(d => d >= todayStr && d <= sevenDaysLater);
+    }
+
+    // 纯粹两档互斥色彩：近7天有票 / 20+天充裕统一赋予极光翠绿；其余紧俏散票统一赋予冷灰
+    let color = '#64748b'; // 紧俏 / 1~9天 (冷灰)
+    let width = 1.1;
+
+    if (isRecent || count >= 20) {
+      color = '#10b981'; // 近7天有票 / 20+天 (极光翠绿)
+      width = 2.0;
+    } else if (count === 0) {
+      color = '#334155'; // 暂无直飞机位
+      width = 0.8;
     }
 
     return {
@@ -311,7 +307,7 @@ const renderedRoutes = computed(() => {
   }).filter(Boolean);
 });
 
-// 计算所有关联可见的城市列表
+// 计算所有关联可见的城市列表 (双向全通)
 const renderedCities = computed(() => {
   const visibleCityNames = new Set();
 
@@ -324,6 +320,7 @@ const renderedCities = computed(() => {
   } else {
     visibleCityNames.add(props.origin);
     filteredRoutes.value.forEach(r => {
+      visibleCityNames.add(r.from);
       visibleCityNames.add(r.to);
     });
   }
@@ -414,8 +411,9 @@ function resetMapZoom() {
 
 function handleCityClick(cityName) {
   if (cityName === props.origin) return;
-  // 如果当前是单出发城市模式，优先查看是否有直飞；否则切换为该出发城市
-  const directRoute = props.availableRoutes.find(r => r.from === props.origin && r.to === cityName);
+  // 优先匹配从当前城市出发的直飞，若无则匹配返回当前城市的直飞，均可直接打开抽屉
+  const directRoute = props.availableRoutes.find(r => r.from === props.origin && r.to === cityName)
+    || props.availableRoutes.find(r => r.from === cityName && r.to === props.origin);
   if (directRoute) {
     emit('open-drawer', directRoute);
   } else {
@@ -438,26 +436,84 @@ function onRouteHover(e, r) {
   hoverTooltip.visible = true;
   hoverTooltip.x = e.clientX - rect.left + 12;
   hoverTooltip.y = e.clientY - rect.top - 36;
-  hoverTooltip.title = `${r.from} ➔ ${r.to}`;
+  const dirTag = r.from === props.origin ? '【出发直飞】' : (r.to === props.origin ? '【到达/返程】' : '');
+  hoverTooltip.title = `${r.from} ➔ ${r.to} ${dirTag}`;
   hoverTooltip.sub = `可兑出行日: ${r.count} 天 ${r.isRecent ? '· 7天内近期有票' : ''}`;
 }
 
 function onRouteLeave() {
   hoverTooltip.visible = false;
 }
+
+// ----------------------------- 全屏大屏沉浸模式
+const isFullscreen = ref(false);
+
+async function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    try {
+      const root = document.documentElement;
+      if (root.requestFullscreen) {
+        await root.requestFullscreen();
+      } else if (root.webkitRequestFullscreen) {
+        await root.webkitRequestFullscreen();
+      }
+    } catch (e) {
+      console.warn('全屏请求失败:', e);
+    }
+  } else {
+    try {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      }
+    } catch (e) {
+      console.warn('退出全屏失败:', e);
+    }
+  }
+}
+
+function onFullscreenChange() {
+  isFullscreen.value = Boolean(document.fullscreenElement);
+  if (isFullscreen.value) {
+    document.body.classList.add('is-map-fullscreen');
+  } else {
+    document.body.classList.remove('is-map-fullscreen');
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+  document.body.classList.remove('is-map-fullscreen');
+});
 </script>
 
 <style scoped>
 .map-explorer-wrapper {
   position: relative;
   width: 100%;
-  height: 840px;
-  min-height: 800px;
+  height: calc(100vh - 82px);
+  min-height: 560px;
+  max-height: 100vh;
   background: radial-gradient(circle at 60% 40%, #0d1629 0%, #050811 100%);
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   user-select: none;
+}
+
+/* 全屏大屏沉浸模式 */
+.map-explorer-wrapper:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
 }
 
 .china-flight-svg {
@@ -517,25 +573,7 @@ function onRouteLeave() {
   filter: drop-shadow(0 0 6px #38bdf8);
 }
 
-/* 7天内流动光粒子动画 */
-.route-flow-particle {
-  fill: none;
-  stroke: url(#flowParticleGradient);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-dasharray: 20 180;
-  animation: flowParticleAnim 2.8s linear infinite;
-  pointer-events: none;
-}
 
-@keyframes flowParticleAnim {
-  from {
-    stroke-dashoffset: 200;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
 
 /* 城市节点 */
 .city-node-item {
@@ -661,6 +699,39 @@ function onRouteLeave() {
   transform: scale(0.97);
 }
 
+/* 悬浮在地图右上角的全屏切换按钮 (右侧、仅图标、高质感半透明毛玻璃) */
+.btn-map-fullscreen {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: var(--radius-md);
+  color: #38bdf8;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-map-fullscreen:hover {
+  background: rgba(14, 165, 233, 0.28);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-map-fullscreen:active {
+  transform: scale(0.94);
+}
+
 .map-legend-card {
   position: absolute;
   bottom: 20px;
@@ -689,13 +760,7 @@ function onRouteLeave() {
   border-radius: 2px;
 }
 
-.legend-flow {
-  width: 14px;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, #38bdf8, #fff);
-  border-radius: 2px;
-  animation: pulse 1.5s infinite;
-}
+
 
 .map-hover-tooltip {
   position: absolute;

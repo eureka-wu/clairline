@@ -63,6 +63,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             msg = format % args
         except Exception:
             msg = " ".join(str(a) for a in args) if args else format
+        # 静音高频的心跳状态轮询日志，避免控制台刷屏打扰用户
+        if "/api/patrol/status" in msg or "/api/status" in msg:
+            return
         sys.stdout.write(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
         sys.stdout.flush()
 
@@ -109,8 +112,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             date_str = qs.get("date", [""])[0] or datetime.now().strftime("%Y-%m-%d")
             force_refresh = qs.get("refresh", ["0"])[0] in ("1", "true", "True") or qs.get("force", ["0"])[0] in ("1", "true", "True")
 
-            frm = IATA_CITY.get(raw_from, raw_from)
-            to = IATA_CITY.get(raw_to, raw_to)
+            frm = db.normalize_city(raw_from)
+            to = db.normalize_city(raw_to)
+            from_code = db.normalize_iata(raw_from)
+            to_code = db.normalize_iata(raw_to)
 
             if not frm or not to:
                 self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
@@ -125,6 +130,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                             "ok": True, 
                             "from": frm, 
                             "to": to, 
+                            "fromCode": from_code,
+                            "toCode": to_code,
                             "date": date_str, 
                             "flights": saved_flights,
                             "count": len(saved_flights),
@@ -137,7 +144,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     print(f"⚠️ 读取数据库查验记录提示: {ex}")
 
             try:
-                flights = client.search_flights(frm, to, date_str)
+                flights = client.search_flights(from_code, to_code, date_str)
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 # 核心功能：每次查验结果自动持久化落库
                 try:
@@ -149,6 +156,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     "ok": True, 
                     "from": frm, 
                     "to": to, 
+                    "fromCode": from_code,
+                    "toCode": to_code,
                     "date": date_str, 
                     "flights": flights,
                     "count": len(flights),
@@ -164,11 +173,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             # 从数据库读取已持久化的查验记录缓存 (支持单航线或全库拉取)
             raw_from = qs.get("from", [""])[0]
             raw_to = qs.get("to", [""])[0]
-            frm = IATA_CITY.get(raw_from, raw_from)
-            to = IATA_CITY.get(raw_to, raw_to)
+            frm = db.normalize_city(raw_from)
+            to = db.normalize_city(raw_to)
             if frm and to:
                 records = db.get_seat_queries_for_route(frm, to)
-                self.send_json({"ok": True, "from": frm, "to": to, "cache": records})
+                self.send_json({
+                    "ok": True, 
+                    "from": frm, 
+                    "to": to, 
+                    "fromCode": db.normalize_iata(raw_from),
+                    "toCode": db.normalize_iata(raw_to),
+                    "cache": records
+                })
             else:
                 all_records = db.get_all_seat_cache()
                 self.send_json({"ok": True, "cache": all_records})
@@ -176,9 +192,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/calendar":
             # 用户核心需求：接口返回时候 这些如 14、21号没票的彻底不用返回，只返回纯净有票出行日
-            frm = qs.get("from", [""])[0]
-            to = qs.get("to", [""])[0]
+            raw_from = qs.get("from", [""])[0]
+            raw_to = qs.get("to", [""])[0]
             force_refresh = qs.get("refresh", ["0"])[0] in ("1", "true", "True")
+
+            frm = db.normalize_city(raw_from)
+            to = db.normalize_city(raw_to)
+            from_code = db.normalize_iata(raw_from)
+            to_code = db.normalize_iata(raw_to)
+
             if not frm or not to:
                 self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
                 return
@@ -192,7 +214,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     return
                 try:
                     client.check_and_reload()
-                    cal = client.get_calendar(frm, to)
+                    cal = client.get_calendar(from_code, to_code)
                     db.save_route_calendar(frm, to, cal)
                 except Exception as ex:
                     err_msg = str(ex)
@@ -206,7 +228,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             # 若库中暂无且有抓包凭据，实时拉取并增量入库
             if not dates and not force_refresh and client.headers:
                 try:
-                    cal = client.get_calendar(frm, to)
+                    cal = client.get_calendar(from_code, to_code)
                     db.save_route_calendar(frm, to, cal)
                     dates = db.get_available_dates(frm, to)
                 except Exception:
@@ -216,6 +238,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 "ok": True, 
                 "from": frm, 
                 "to": to, 
+                "fromCode": from_code,
+                "toCode": to_code,
                 "availableDates": dates,  # 仅包含有票出行日，无票日已被数据库严格过滤
                 "count": len(dates),
                 "refreshed": force_refresh

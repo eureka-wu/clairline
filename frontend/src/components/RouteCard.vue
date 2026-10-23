@@ -56,12 +56,8 @@
         </template>
       </div>
 
-      <!-- 右侧航距与操作 -->
+      <!-- 右侧操作 -->
       <div class="card-actions">
-        <div class="distance-info">
-          <div class="distance-km">{{ route.distance ? `${route.distance.toLocaleString()} km` : '直飞航线' }}</div>
-          <div class="distance-tag">{{ route.distance >= 800 ? '超800km' : '800km内' }}</div>
-        </div>
         <button 
           type="button" 
           class="btn-glass" 

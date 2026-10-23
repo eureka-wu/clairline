@@ -29,15 +29,43 @@ DATA_DIR = BACKEND_DIR / "data"
 DB_PATH = DATA_DIR / "changlong.db"
 
 CITY_IATA_MAP = {
-    "杭州": "HGH", "阿勒泰": "AAT", "喀什": "KHG", "克拉玛依": "KRY", "西双版纳": "JHG",
-    "丽江": "LJG", "三亚": "SYX", "海口": "HAK", "哈尔滨": "HRB", "长春": "CGQ",
-    "成都": "TFU", "重庆": "CKG", "广州": "CAN", "深圳": "SZX", "珠海": "ZUH",
-    "贵阳": "KWE", "昆明": "KMG", "乌鲁木齐": "URC", "西宁": "XNN", "银川": "INC",
-    "大连": "DLC", "沈阳": "SHE", "海拉尔": "HLD", "图木舒克": "TWC", "呼和浩特": "HET",
-    "兰州": "LHW", "武汉": "WUH", "长沙": "CSX", "西安": "XIY", "郑州": "CGO",
-    "青岛": "TAO", "济南": "TNA", "烟台": "YNT", "威海": "WEH", "潍坊": "WEF",
-    "临沂": "LYI", "太原": "TYN", "包头": "BAV", "延吉": "YNJ", "长白山": "NBS"
+    '阿勒泰':'AAT','阿拉尔':'ACF','阿克苏':'AKU','巴中':'BZX','广州':'CAN','郑州':'CGO',
+    '长春':'CGQ','重庆':'CKG','长沙':'CSX','成都':'TFU','大连':'DLC','东营':'DOY',
+    '张家界':'DYG','达州':'DZH','恩施':'ENH','海口':'HAK','邯郸':'HDG','呼和浩特':'HET',
+    '杭州':'HGH','海拉尔':'HLD','衡阳':'HNY','哈尔滨':'HRB','菏泽':'HZA','银川':'INC',
+    '西双版纳':'JHG','泉州':'JJN','嘉兴':'JNH','鸡西':'JXA','喀什':'KHG','昆明':'KMG',
+    '赣州':'KOW','克拉玛依':'KRY','贵阳':'KWE','兰州':'LHW','丽江':'LJG','芒市':'LUM',
+    '临沂':'LYI','泸州':'LZO','宁波':'NGB','北京':'PEK','上海':'PVG','沈阳':'SHE',
+    '荆州':'SHS','三亚':'SYX','深圳':'SZX','青岛':'TAO','通化':'TNH','图木舒克':'TWC',
+    '太原':'TYN','乌鲁木齐':'URC','潍坊':'WEF','威海':'WEH','茅台':'WMT','温州':'WNZ',
+    '武汉':'WUH','无锡':'WUX','襄阳':'XFN','西安':'XIY','西宁':'XNN','徐州':'XUZ',
+    '烟台':'YNT','珠海':'ZUH','遵义':'ZYI','包头':'BAV','南京':'NKG','南宁':'NNG',
+    '常州':'CZX','柳州':'LZH','济南':'TNA','福州':'FOC','赤峰':'CIF','延吉':'YNJ','长白山':'NBS'
 }
+
+IATA_CITY_MAP = {v: k for k, v in CITY_IATA_MAP.items()}
+# 兼容成都双流/天府互转
+IATA_CITY_MAP['CTU'] = '成都'
+IATA_CITY_MAP['TFU'] = '成都'
+
+def normalize_city(name_or_code: str) -> str:
+    """将城市名或 IATA 三字码统一规范化为数据库标准的中文城市名（如 'HGH' -> '杭州', '杭州' -> '杭州'）"""
+    if not name_or_code:
+        return ""
+    clean = str(name_or_code).strip()
+    upper = clean.upper()
+    if upper in IATA_CITY_MAP:
+        return IATA_CITY_MAP[upper]
+    return clean
+
+def normalize_iata(name_or_code: str) -> str:
+    """将城市名或 IATA 三字码统一规范化为标准的 3 字母机场三字码（如 '杭州' -> 'HGH', 'HGH' -> 'HGH'）"""
+    if not name_or_code:
+        return ""
+    clean = str(name_or_code).strip()
+    if clean in CITY_IATA_MAP:
+        return CITY_IATA_MAP[clean]
+    return clean.upper()
 
 def get_connection() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)

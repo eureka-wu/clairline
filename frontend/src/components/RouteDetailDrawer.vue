@@ -25,9 +25,20 @@
       <div class="drawer-body">
         <!-- 60天可兑换出行日网格 -->
         <div style="margin-bottom:20px;">
-          <div style="font-size:0.9rem; font-weight:800; color:#059669; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+          <div style="font-size:0.9rem; font-weight:800; color:#059669; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <span>近 60 天可兑换出行日 ({{ (route.availableDates || []).length }} 天)</span>
-            <span style="font-size:0.72rem; color:var(--text-muted); font-weight:normal;">已查验日期触摸即显 · 未查验点击查询</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button 
+                type="button" 
+                class="btn-refresh-route"
+                :disabled="isRefreshing"
+                @click="onRefreshCalendar"
+                title="实时联网向长龙官方刷新本航线放票日历"
+              >
+                <span>{{ isRefreshing ? '刷新中...' : '刷新放票' }}</span>
+              </button>
+              <span style="font-size:0.72rem; color:var(--text-muted); font-weight:normal;">已查验触摸即显 · 未查验点击查询</span>
+            </div>
           </div>
 
           <div style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -95,7 +106,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { DEST_ONWARD_TIPS, HIGH_SPEED_RAIL_CONNECTIONS } from '../data/city-meta.js';
 
 const props = defineProps({
@@ -110,7 +121,21 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close', 'click-date', 'hover-date', 'leave-date']);
+const emit = defineEmits(['close', 'click-date', 'hover-date', 'leave-date', 'refresh-calendar']);
+
+const isRefreshing = ref(false);
+
+function onRefreshCalendar() {
+  if (isRefreshing.value) return;
+  isRefreshing.value = true;
+  emit('refresh-calendar', {
+    from: props.route.from,
+    to: props.route.to,
+    done: () => {
+      isRefreshing.value = false;
+    }
+  });
+}
 
 const onwardTip = computed(() => DEST_ONWARD_TIPS[props.route.to] || '');
 const railHubs = computed(() => HIGH_SPEED_RAIL_CONNECTIONS[props.route.from] || []);

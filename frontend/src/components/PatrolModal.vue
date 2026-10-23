@@ -241,10 +241,19 @@ async function loadData() {
   }
 }
 
-watch(() => props.visible, (val) => {
+watch(() => props.visible, async (val) => {
   if (val) {
     loadData();
-    startPolling();
+    // 仅在后台确实有巡检在执行时才开启进度轮询，待命状态绝不无端轮询
+    try {
+      const res = await fetchPatrolStatus();
+      if (res && res.state) {
+        patrolState.value = res.state;
+        if (res.state.running) {
+          startPolling();
+        }
+      }
+    } catch (e) {}
   } else {
     stopPolling();
   }
@@ -299,9 +308,15 @@ function startPolling() {
       const res = await fetchPatrolStatus();
       if (res && res.state) {
         patrolState.value = res.state;
+        // 若任务已结束或处于空闲状态，立即自动停止轮询
+        if (!res.state.running) {
+          stopPolling();
+        }
       }
-    } catch (e) {}
-  }, 1000);
+    } catch (e) {
+      stopPolling();
+    }
+  }, 1500);
 }
 
 function stopPolling() {

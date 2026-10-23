@@ -1,5 +1,5 @@
 <template>
-  <div class="app-root">
+  <div class="app-root" :class="{ 'is-map-mode': currentTab === 'map' }">
     <!-- 顶部导航栏 -->
     <AppHeader 
       v-model:currentTab="currentTab"
@@ -8,24 +8,8 @@
     />
 
     <!-- 主体容器 (限制 1280px 居中) -->
-    <main class="app-container">
-      <!-- 大盘实时指标状态横幅 -->
-      <div class="status-banner">
-        <div class="status-left">
-          <div class="status-dot"></div>
-          <div>
-            官方放票大盘已同步 · 
-            <span class="status-strong">{{ summary.totalAvailableRoutes || 309 }}</span> 条航线有票 
-            (<span class="status-strong">{{ (summary.totalDatePoints || 6315).toLocaleString() }}</span> 个出行日)
-            <span v-if="cachedDaysCount > 0" style="color:#059669; font-weight:700; margin-left:8px;">
-              · 数据库已沉淀 {{ cachedDaysCount }} 个查验日
-            </span>
-          </div>
-        </div>
-        <div style="font-size:0.75rem; color:var(--text-muted);">
-          点击具体日期胶囊直接查验各班畅飞卡余票
-        </div>
-      </div>
+    <main class="app-container" :class="{ 'is-map-container': currentTab === 'map' }">
+
 
       <!-- TAB 1: 航线探索列表 -->
       <section v-show="currentTab === 'routes'">
@@ -97,6 +81,7 @@
       @click-date="handleDateClick"
       @hover-date="handleDateHover"
       @leave-date="handleDateLeave"
+      @refresh-calendar="handleRefreshCalendar"
     />
 
     <!-- 巡检航线配置模态框 -->
@@ -114,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import AppHeader from './components/AppHeader.vue';
 import RouteFilterBar from './components/RouteFilterBar.vue';
 import RouteCard from './components/RouteCard.vue';
@@ -130,6 +115,20 @@ import { CITY_METADATA } from './data/city-meta.js';
 
 // 当前状态
 const currentTab = ref('routes');
+
+// 用户需求：仅在地图模式下锁定页面滚动，表格探索列表模式正常滚动浏览
+watch(currentTab, (val) => {
+  if (val === 'map') {
+    document.body.classList.add('is-map-tab');
+  } else {
+    document.body.classList.remove('is-map-tab');
+  }
+}, { immediate: true });
+
+onUnmounted(() => {
+  document.body.classList.remove('is-map-tab');
+});
+
 const origin = ref('杭州');
 const destination = ref('全部');
 const onlyAvailable = ref(true);
@@ -440,12 +439,16 @@ async function handleRefreshCalendar({ from, to, done }) {
         match.availableDates = res.availableDates;
         match.availableDaysCount = res.availableDates.length;
       }
+      if (selectedRoute.value && selectedRoute.value.from === from && selectedRoute.value.to === to) {
+        selectedRoute.value.availableDates = res.availableDates;
+        selectedRoute.value.availableDaysCount = res.availableDates.length;
+      }
       showToast(`【${from} ➔ ${to}】日历已更新！共 ${res.availableDates.length} 天有票`);
     } else {
       showToast(`刷新提示: ${res.error || '暂无新增'}`);
     }
   } catch (e) {
-    showToast('网络请求异常');
+    showToast(`刷新提示: ${e.message || '网络请求异常'}`);
   } finally {
     done();
   }

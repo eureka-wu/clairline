@@ -35,6 +35,35 @@
   padding: 0;
 }
 
+/* 页面级别滚动条优化：极致淡化滚动条存在感，优雅无感 */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.48);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
@@ -48,6 +77,18 @@ body {
   max-width: 1280px;
   margin: 0 auto;
   padding: 16px 20px 48px;
+}
+
+/* 地图探索模式：禁止页面级滚动，消除遮挡与晃动，专注地图无极缩放与漫游操作 */
+body.is-map-tab {
+  overflow: hidden !important;
+  height: 100vh !important;
+}
+
+body.is-map-tab .app-container {
+  padding: 12px 20px 12px;
+  height: calc(100vh - 58px);
+  overflow: hidden;
 }
 
 /* 顶部 Header */
@@ -202,19 +243,25 @@ body {
   color: var(--text-primary);
 }
 
-/* 筛选工具栏 */
+/* 筛选工具栏 (用户需求：滚动时吸顶固定在顶部，紧贴 Header 下方) */
 .filter-card {
-  background: #ffffff;
+  position: sticky;
+  top: 60px;
+  z-index: 90;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: 14px 18px;
+  padding: 12px 18px;
   margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.09);
+  transition: all 0.2s ease;
 }
 
 .filter-left {
