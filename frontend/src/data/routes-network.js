@@ -1,14 +1,8 @@
-/**
- * 长龙航空全量航网拓扑与直飞关系字典
- * 自动从 FLIGHTS_SCHEDULE（由 flight-routes.json 驱动）动态派生
- * 杜绝静态冗余，保证排班数据与航网拓扑 100% 实时同步
- */
 import { FLIGHTS_SCHEDULE } from './flights-schedule.js';
-import { CITY_METADATA } from './routes-data.js';
+import { CITY_METADATA } from './city-meta.js';
 
-// 计算两城市间的大圆球面距离 (Haversine Formula)
 function calculateDistance(lon1, lat1, lon2, lat2) {
-  const R = 6371; // 地球平均半径 (km)
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -17,17 +11,6 @@ function calculateDistance(lon1, lat1, lon2, lat2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
-
-// 季节性与重点航线标签
-const SEASONAL_FLAGS = {
-  '太原-深圳': '待换季复核/夏秋执飞多',
-  '深圳-太原': '待换季复核/夏秋执飞多',
-  '通化-烟台': '季节性执飞',
-  '烟台-通化': '季节性执飞',
-  '大连-常州': '冬春季班期微调',
-  '哈尔滨-三亚': '冬季大热门/冬春加密',
-  '杭州-阿勒泰': '滑雪季与夏秋草原重点'
-};
 
 const routeList = [];
 const directMap = {};
@@ -56,13 +39,11 @@ FLIGHTS_SCHEDULE.forEach(f => {
       from: f.from,
       to: f.to,
       distance,
-      isOver800Km: distance >= 800,
-      seasonStatus: SEASONAL_FLAGS[key] || '常态班期/以实际放票为准'
+      isOver800Km: distance >= 800
     });
   }
 });
 
-// 导出与原有接口 100% 兼容的三个核心航网对象
 export const ROUTES_NETWORK = routeList;
 export const DIRECT_MAP = directMap;
 export const REVERSE_MAP = reverseMap;

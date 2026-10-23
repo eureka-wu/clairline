@@ -20,6 +20,8 @@ if hasattr(sys.stdout, "reconfigure"):
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BACKEND_DIR.parent
 FRONTEND_DIR = PROJECT_DIR / "frontend"
+DIST_DIR = FRONTEND_DIR / "dist"
+STATIC_DIR = DIST_DIR if DIST_DIR.exists() else FRONTEND_DIR
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
@@ -38,7 +40,9 @@ scheduler = MonitorScheduler(client)
 
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(FRONTEND_DIR), **kwargs)
+        # 优先分发 Vite 构建生成的现代单页应用产物 (dist)
+        target_dir = DIST_DIR if DIST_DIR.exists() else FRONTEND_DIR
+        super().__init__(*args, directory=str(target_dir), **kwargs)
 
     def handle_one_request(self):
         try:

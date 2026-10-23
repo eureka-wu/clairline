@@ -37,9 +37,10 @@ tmp/
 
 # IDE 与操作系统临时文件
 .vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-desktop.ini
+# Node.js 依赖与构建产物
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
