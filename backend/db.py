@@ -89,7 +89,7 @@ def init_db():
                 frequency TEXT NOT NULL DEFAULT '',
                 stopover TEXT NOT NULL DEFAULT '',
                 season TEXT NOT NULL DEFAULT '',
-                UNIQUE (from_city, to_city, flight_no)
+                UNIQUE (from_city, to_city, flight_no, dep_time)
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_flight_routes_ft ON flight_routes(from_city, to_city)")
@@ -107,7 +107,7 @@ def init_db():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_calendar_avail ON flight_calendar(from_city, to_city, is_available)")
 
-        # 5. 实时查验流水表 (seat_queries) - 记录用户点击查票 (如 17:25查) 的机位与时刻
+        # 5. 实时查验流水表 (seat_queries) - 记录用户与系统查票的每个航班机位与时刻 (持久化核心)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS seat_queries (
                 from_city TEXT NOT NULL,
@@ -118,14 +118,23 @@ def init_db():
                 normal_left INTEGER NOT NULL DEFAULT 0,
                 dep_time TEXT NOT NULL DEFAULT '',
                 arr_time TEXT NOT NULL DEFAULT '',
+                aircraft TEXT NOT NULL DEFAULT 'A320',
+                stopover TEXT NOT NULL DEFAULT '直飞',
                 cabin_code TEXT NOT NULL DEFAULT '',
                 redeem_price REAL NOT NULL DEFAULT 0.0,
                 query_time TEXT NOT NULL,
                 time_label TEXT NOT NULL,
-                PRIMARY KEY (from_city, to_city, flight_date, flight_no)
+                PRIMARY KEY (from_city, to_city, flight_date, flight_no, dep_time)
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_seat_queries_route ON seat_queries(from_city, to_city)")
+
+        # 兼容性表结构热迁移：确保旧库自动追加 aircraft 和 stopover 字段
+        for col_def in [("aircraft", "TEXT NOT NULL DEFAULT 'A320'"), ("stopover", "TEXT NOT NULL DEFAULT '直飞'")]:
+            try:
+                conn.execute(f"ALTER TABLE seat_queries ADD COLUMN {col_def[0]} {col_def[1]}")
+            except Exception:
+                pass
 
         # 6. 巡检监控日志表 (patrol_logs)
         conn.execute("""
@@ -169,6 +178,14 @@ def init_db():
         """)
 
     _seed_initial_data(conn)
+    # 自动安全清理：清除所有早于长龙航空提前3天预约起兑日的历史过期日，确保存储与大盘100%纯净
+    try:
+        min_date = get_min_bookable_date()
+        with conn:
+            conn.execute("DELETE FROM flight_calendar WHERE flight_date < ?", (min_date,))
+            conn.execute("DELETE FROM seat_queries WHERE flight_date < ?", (min_date,))
+    except Exception as e:
+        print(f"⚠️ 自动清理历史过期日期提示: {e}")
     conn.close()
 
 def _seed_initial_data(conn: sqlite3.Connection):
@@ -179,11 +196,12 @@ def _seed_initial_data(conn: sqlite3.Connection):
     default_configs = [
         ("hot_interval_minutes", "25", "日间热门巡检循环周期(分钟)"),
         ("hot_min_delay_seconds", "4.2", "单条航线请求最小拟人延迟(秒)"),
+        ("hot_patrol_enabled", "0", "30条核心热门航线自动轮巡总开关(1开启/0关闭)"),
+        ("all_patrol_enabled", "0", "全网全量航线定时普查总开关(1开启/0关闭)"),
         ("night_silent_enabled", "1", "夜间防风控静默避让开关(1开启/0关闭)"),
         ("night_start_hour", "0", "夜间静默开始时间(点)"),
         ("night_end_hour", "7", "夜间静默结束时间(点)"),
-        ("morning_full_hour", "9", "上午官方黄金放票普查时间(点)"),
-        ("evening_full_hour", "20", "晚间官方黄金放票普查时间(点)"),
+        ("full_patrol_times", "09:00,20:00", "每日全量航线普查定时点(HH:mm, 至多3个以逗号分隔)"),
     ]
     for k, v, desc in default_configs:
         conn.execute("""
@@ -311,18 +329,70 @@ def update_patrol_config(updates: dict[str, str]) -> bool:
     finally:
         conn.close()
 
+def get_full_patrol_times() -> list[str]:
+    """获取配置的全量普查定时列表 (至多3个，如 ['09:00', '20:00'])"""
+    cfg = get_patrol_config()
+    raw = cfg.get("full_patrol_times", "09:00,20:00")
+    times = [t.strip() for t in raw.split(",") if t.strip()]
+    return times[:3]
+
+def set_full_patrol_times(times: list[str]) -> list[str]:
+    """更新全量普查定时列表 (至多3个)"""
+    cleaned = []
+    seen = set()
+    for t in times:
+        t = str(t).strip()
+        if ":" in t and t not in seen:
+            seen.add(t)
+            cleaned.append(t)
+            if len(cleaned) >= 3:
+                break
+    val = ",".join(cleaned)
+    update_patrol_config({"full_patrol_times": val})
+    return cleaned
+
+def get_patrol_switches() -> dict[str, bool]:
+    """读取 30 条热门巡检与全量普查的启用开关状态"""
+    cfg = get_patrol_config()
+    return {
+        "hot_enabled": cfg.get("hot_patrol_enabled", "0") in ("1", "true", "True"),
+        "all_enabled": cfg.get("all_patrol_enabled", "0") in ("1", "true", "True")
+    }
+
+def set_patrol_switches(hot_enabled: bool | None = None, all_enabled: bool | None = None) -> dict[str, bool]:
+    """更新 30 条热门巡检与全量普查的启用开关状态"""
+    updates = {}
+    if hot_enabled is not None:
+        updates["hot_patrol_enabled"] = "1" if hot_enabled else "0"
+    if all_enabled is not None:
+        updates["all_patrol_enabled"] = "1" if all_enabled else "0"
+    if updates:
+        update_patrol_config(updates)
+    return get_patrol_switches()
+
+def get_min_bookable_date() -> str:
+    """
+    长龙航空畅飞卡官方核心兑换规则：
+    须至少提前 3 天预约机位兑换（例如：今天23号最早只能预约兑换26号及以后的航班，23/24/25号均已截止无法兑换）。
+    """
+    from datetime import datetime, timedelta
+    return (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+
 def get_available_dates(from_city: str, to_city: str) -> list[str]:
     """
-    核心需求：严格只返回有票的出行日！无票的 (如14号、21号) 绝对不返回！
+    核心需求：
+    1. 严格只返回有票的出行日！无票的 (如14号、21号) 绝对不返回！
+    2. 严格遵守畅飞卡提前3天规则，已截止不可预约的日期 (如今天23号时的25号) 绝对不返回！
     """
+    min_date = get_min_bookable_date()
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute("""
             SELECT flight_date FROM flight_calendar
-            WHERE from_city = ? AND to_city = ? AND is_available = 1
+            WHERE from_city = ? AND to_city = ? AND is_available = 1 AND flight_date >= ?
             ORDER BY flight_date ASC
-        """, (from_city, to_city))
+        """, (from_city, to_city, min_date))
         return [row[0] for row in cur.fetchall()]
     finally:
         conn.close()
@@ -367,11 +437,13 @@ def save_seat_query_result(from_city: str, to_city: str, flight_date: str, fligh
         norm_left = int(item.get("normalLeft", 0))
         dep = item.get("depTime") or ""
         arr = item.get("arrTime") or ""
+        aircraft = item.get("aircraft") or "A320"
+        stopover = item.get("stopover") or "直飞"
         cabin = item.get("cabinCode") or ""
         price = float(item.get("redeemPrice", 0.0))
         records.append((
             from_city, to_city, flight_date, f_no,
-            sec_left, norm_left, dep, arr, cabin, price,
+            sec_left, norm_left, dep, arr, aircraft, stopover, cabin, price,
             now_str, time_label
         ))
 
@@ -379,27 +451,64 @@ def save_seat_query_result(from_city: str, to_city: str, flight_date: str, fligh
         with conn:
             conn.executemany("""
                 INSERT OR REPLACE INTO seat_queries 
-                (from_city, to_city, flight_date, flight_no, sec_card_left, normal_left, dep_time, arr_time, cabin_code, redeem_price, query_time, time_label)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (from_city, to_city, flight_date, flight_no, sec_card_left, normal_left, dep_time, arr_time, aircraft, stopover, cabin_code, redeem_price, query_time, time_label)
+                -- 严格按序对应上方 14 个数据库字段的标准 SQLite 参数占位符 (?)，防止 SQL 注入并实现高效批量写入
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, records)
+    finally:
+        conn.close()
+
+def get_saved_flight_details(from_city: str, to_city: str, flight_date: str) -> list[dict]:
+    """
+    从 SQLite 数据库 seat_queries 读取指定航线某日已保存的真实查验详情
+    """
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT flight_no, dep_time, arr_time, aircraft, stopover, redeem_price, sec_card_left, normal_left, cabin_code, query_time, time_label
+            FROM seat_queries
+            WHERE from_city = ? AND to_city = ? AND flight_date = ?
+            ORDER BY dep_time ASC
+        """, (from_city, to_city, flight_date))
+        rows = cur.fetchall()
+        if not rows:
+            return []
+        out = []
+        for r in rows:
+            out.append({
+                "flightNo": r["flight_no"],
+                "depTime": r["dep_time"],
+                "arrTime": r["arr_time"],
+                "aircraft": r["aircraft"] or "A320",
+                "stopover": r["stopover"] or "直飞",
+                "redeemPrice": float(r["redeem_price"]),
+                "secCardLeft": int(r["sec_card_left"]),
+                "normalLeft": int(r["normal_left"]),
+                "cabinCode": r["cabin_code"],
+                "queryTime": r["query_time"],
+                "timeLabel": r["time_label"]
+            })
+        return out
     finally:
         conn.close()
 
 def get_seat_queries_for_route(from_city: str, to_city: str) -> dict[str, dict]:
     """
-    读取某条航线在数据库中已持久化记录的最新查票结果
+    读取某条航线在数据库中已持久化记录的最新查票结果 (严格排除已截止不可兑日期)
     返回: { "2026-11-10": { "count": 5, "timeLabel": "17:25查", "queryTime": "2026-10-22 17:25:00" }, ... }
     """
+    min_date = get_min_bookable_date()
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute("""
             SELECT flight_date, SUM(sec_card_left) as total_sec, MAX(time_label) as time_label, MAX(query_time) as q_time
             FROM seat_queries
-            WHERE from_city = ? AND to_city = ?
+            WHERE from_city = ? AND to_city = ? AND flight_date >= ?
             GROUP BY flight_date
             ORDER BY flight_date ASC
-        """, (from_city, to_city))
+        """, (from_city, to_city, min_date))
         out = {}
         for row in cur.fetchall():
             out[row['flight_date']] = {
@@ -412,24 +521,40 @@ def get_seat_queries_for_route(from_city: str, to_city: str) -> dict[str, dict]:
         conn.close()
 
 def get_all_seat_cache() -> dict[str, dict]:
-    """获取全库所有已查验的记录缓存: '杭州-图木舒克-2026-11-10' => {count, timeLabel}"""
+    """获取全库所有已查验的有效记录缓存 (包含详细 flights 列表): '杭州-图木舒克-2026-11-10' => {count, timeLabel, timeFormatted, flights}"""
+    min_date = get_min_bookable_date()
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT from_city, to_city, flight_date, SUM(sec_card_left) as total_sec, MAX(time_label) as time_label, MAX(query_time) as q_time
+            SELECT from_city, to_city, flight_date, flight_no, sec_card_left, normal_left, dep_time, arr_time, aircraft, stopover, redeem_price, query_time, time_label
             FROM seat_queries
-            GROUP BY from_city, to_city, flight_date
-        """)
+            WHERE flight_date >= ?
+            ORDER BY from_city, to_city, flight_date, dep_time ASC
+        """, (min_date,))
         out = {}
         for row in cur.fetchall():
             key = f"{row['from_city']}-{row['to_city']}-{row['flight_date']}"
-            out[key] = {
-                "count": row['total_sec'],
-                "timeLabel": row['time_label'],
-                "timeFormatted": row['q_time'],
-                "timestamp": row['q_time']
+            if key not in out:
+                out[key] = {
+                    "count": 0,
+                    "timeLabel": row["time_label"],
+                    "timeFormatted": row["query_time"],
+                    "timestamp": row["query_time"],
+                    "flights": []
+                }
+            f_item = {
+                "flightNo": row["flight_no"],
+                "depTime": row["dep_time"],
+                "arrTime": row["arr_time"],
+                "aircraft": row["aircraft"] or "A320",
+                "stopover": row["stopover"] or "直飞",
+                "secCardLeft": int(row["sec_card_left"]),
+                "normalLeft": int(row["normal_left"]),
+                "redeemPrice": float(row["redeem_price"])
             }
+            out[key]["flights"].append(f_item)
+            out[key]["count"] += int(row["sec_card_left"])
         return out
     finally:
         conn.close()
@@ -442,16 +567,17 @@ def get_available_routes_dto() -> dict:
     2. 内置挂载历史查验记录（如 17:25查），页面一刷即呈现；
     3. 关联 flight_routes 完整排班信息。
     """
+    min_date = get_min_bookable_date()
     conn = get_connection()
     try:
         cur = conn.cursor()
-        # 1. 查询所有有票的航线及其日期列表
+        # 1. 查询所有有票且满足提前3天兑换规则的航线及其日期列表 (严格排除今天及提前3天内已截止的日期)
         cur.execute("""
             SELECT from_city, to_city, flight_date
             FROM flight_calendar
-            WHERE is_available = 1
+            WHERE is_available = 1 AND flight_date >= ?
             ORDER BY from_city, to_city, flight_date ASC
-        """)
+        """, (min_date,))
         routes_dates_map = {}
         total_points = 0
         for r in cur.fetchall():

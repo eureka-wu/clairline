@@ -1,55 +1,50 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="light" data-radius="modern">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>长龙航空 · 畅飞卡智能旅行与兑换规划助手</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="js/available-routes-data.js"></script>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%230284c7%22 stroke-width=%222%22><path d=%22M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z%22/></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%230284c7%22 stroke-width=%222%22><path d=%22M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z%22/></svg>">
 </head>
+
 <body>
 
   <!-- 顶部导航栏 -->
   <!-- 顶部精简导航栏 (所有关键概览集成在左上角，彻底释放首屏高度) -->
+  <!-- 顶部导航栏 -->
   <header class="header-glass" style="padding: 10px 24px; min-height: 52px;">
     <div class="logo-area" style="gap: 12px; align-items: center;">
       <div class="logo-badge" id="iconLogo" style="width: 32px; height: 32px;"></div>
-      <div class="logo-text" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-        <h1 style="font-size: 1.15rem; margin: 0; line-height: 1.2;">长龙航空 · 畅飞卡智能大盘</h1>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span class="badge-hangzhou" style="font-size: 0.72rem; padding: 2px 8px; margin: 0;">杭州大本营</span>
-          <span style="font-size: 0.75rem; color: var(--text-secondary); background: #f1f5f9; padding: 2px 8px; border-radius: 12px; font-weight: 600;">
-            <strong style="color: var(--accent-cyan);" id="statCityCount">71</strong> 城市 · <strong style="color: var(--accent-cyan);" id="statRouteCount">398</strong> 直飞 · 官方放票动态监控
-          </span>
-        </div>
+      <div class="logo-text">
+        <h1 class="header-brand-title">长龙畅飞卡</h1>
       </div>
+
+      <!-- 航线探索与地图探索 顶部 Segmented 胶囊切换器 (SVG Icon + 切换) -->
+      <nav class="header-nav-segmented">
+        <button class="tab-btn active" data-tab="tab-routes" title="切换至航线列表探索">
+          <span class="tab-icon" data-icon="plane"></span>
+          <span>航线探索</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-map" title="切换至全网直飞航线地图">
+          <span class="tab-icon" data-icon="compass"></span>
+          <span>地图探索</span>
+        </button>
+      </nav>
     </div>
     <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
       <button id="btnOpenPatrolConfig" class="btn-glass" style="padding: 5px 12px; font-size: 0.8rem;">
         <span id="iconRadar"></span>
         <span id="patrolConfigBtnLabel">巡检航线: 30/30</span>
       </button>
-      <button id="btnOpenFeeConfig" class="btn-glass" style="padding: 5px 12px; font-size: 0.8rem;">
-        <span id="iconSettings"></span>
-        <span id="currentFeeLabel">税费: 机建¥50 / 燃油¥90</span>
-      </button>
     </div>
   </header>
 
   <!-- 主体容器 -->
   <main class="main-container">
-
-
-    <!-- 导航切换 Tab (只保留航线探索与地图探索两大核心模块) -->
-    <nav class="nav-tabs-wrapper">
-      <button class="tab-btn active" data-tab="tab-routes">
-        <span class="tab-icon" data-icon="plane"></span> 航线探索
-      </button>
-      <button class="tab-btn" data-tab="tab-map">
-        <span class="tab-icon" data-icon="compass"></span> 地图探索
-      </button>
-    </nav>
 
     <!-- TAB 1: 航线探索与往返闭环 -->
     <section id="tab-routes" class="tab-content active">
@@ -60,39 +55,44 @@
             <!-- 出发地选择器挂载点 -->
             <div id="csOriginMount"></div>
 
+            <!-- 城市互换按钮 -->
             <button id="btnSwapCity" class="btn-swap-city" type="button" title="点击互换出发地与目的地">⇄</button>
 
             <span class="filter-label">目的地:</span>
-            <!-- 目的地选择器挂载点 (解决用户选完出发地后选择具体目的地需求) -->
+            <!-- 目的地选择器挂载点 -->
             <div id="csDestMount"></div>
 
-            <span class="filter-label" style="margin-left: 6px;">区域:</span>
-            <div id="csRegionMount"></div>
-
-            <!-- 只看有票航线筛选开关 -->
-            <label class="toggle-only-available" title="开启后只展示当前放票有余票的航线">
+            <!-- 查看有票航线/全部航线筛选开关 (文字动态切换：查看有票航线42条 / 全部航线44条) -->
+            <label class="toggle-only-available" title="点击切换查看有票航线或全部航线">
               <input type="checkbox" id="toggleOnlyAvailable" checked>
               <span class="toggle-switch"></span>
-              <span class="toggle-text">仅看有票航线</span>
+              <span class="toggle-text" id="toggleOnlyAvailableText">查看有票航线...</span>
             </label>
           </div>
-          <div class="filter-group" style="align-items:center; gap:12px;">
-            <div class="ticket-status-pill" id="ticketStatusBanner">
-              <span class="pulse-dot"></span>
-              <span id="ticketStatusText">已同步 309 条放票航线</span>
-            </div>
-            <div id="originSummary" style="font-size:0.85rem; color:var(--accent-cyan); font-weight:700;"></div>
-          </div>
-        </div>
 
-        <!-- 航线探索列表容器 -->
+          <!-- 移到顶部的排序工具栏 (原下方整行移至此，界面更紧凑) -->
+          <div class="route-list-sort-bar" id="routeSortBar">
+            <span class="sort-label">排序:</span>
+            <div class="sort-btn-group">
+              <button class="sort-pill-btn" data-sort="recent-first" onclick="window.setRouteSort('recent-first')">
+                最近可兑</button>
+              <button class="sort-pill-btn" data-sort="tickets-desc"
+                onclick="window.setRouteSort('tickets-desc')">最多可兑</button>
+              <button class="sort-pill-btn active" data-sort="time-asc"
+                onclick="window.setRouteSort('time-asc')">起飞时间</button>
+              <button class="sort-pill-btn" data-sort="dist-desc"
+                onclick="window.setRouteSort('dist-desc')">航距最长</button>
+            </div>
+          </div>
+        </div <!-- 航线探索列表容器 -->
         <div id="routesContainer" class="routes-list-container"></div>
       </div>
     </section>
 
     <!-- TAB 2: 地图探索 (全国航网可视化与毛玻璃探层) -->
     <section id="tab-map" class="tab-content" style="display: none;">
-      <div class="glass-panel map-explorer-panel" style="padding: 0; overflow: hidden; border: none; background: transparent;">
+      <div class="glass-panel map-explorer-panel"
+        style="padding: 0; overflow: hidden; border: none; background: transparent;">
         <!-- 交互式 SVG 全国航线地图容器 (全幅宏大展开) -->
         <div class="map-canvas-wrapper" id="mapCanvasWrapper">
           <!-- 悬浮在地图左上角的一体化半透明控制面板 (解决外层白条占位问题) -->
@@ -103,7 +103,7 @@
           </div>
 
           <svg id="chinaFlightMapSvg" viewBox="0 0 1000 780" preserveAspectRatio="xMidYMid meet"></svg>
-          
+
           <!-- 悬浮微提示 tooltip -->
           <div id="mapTooltip" class="map-tooltip" style="display:none;"></div>
         </div>
@@ -120,7 +120,8 @@
           </p>
         </div>
 
-        <div class="filter-bar" style="background: #f8fafc; padding:16px 20px; border-radius:var(--radius-md); border:1px solid var(--border-subtle);">
+        <div class="filter-bar"
+          style="background: #f8fafc; padding:16px 20px; border-radius:var(--radius-md); border:1px solid var(--border-subtle);">
           <div class="filter-group">
             <span class="filter-label">出发地:</span>
             <div id="csTransferOriginMount"></div>
@@ -153,7 +154,8 @@
           <p style="color:var(--text-secondary); max-width:580px; margin:0 auto 24px; font-size:0.9rem;">
             不想为挑选目的地烦恼？只要有时间、有兑换库存，长龙带你走遍大江南北！
           </p>
-          <div style="display:flex; justify-content:center; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
+          <div
+            style="display:flex; justify-content:center; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
             <div style="display:flex; align-items:center; gap:8px;">
               <span style="font-size:0.86rem; color:var(--text-secondary); font-weight:600;">出发城市:</span>
               <div id="csBlindboxOriginMount"></div>
@@ -192,7 +194,8 @@
     <div id="mapDetailDrawer" class="map-frosted-drawer" style="display:none;">
       <div class="drawer-header">
         <div class="drawer-route-title" id="drawerRouteTitle">杭州 ➔ 西双版纳</div>
-        <button class="drawer-close-btn" id="btnCloseMapDrawer" onclick="document.getElementById('mapDetailDrawer').style.display='none'" title="关闭探层">&times;</button>
+        <button class="drawer-close-btn" id="btnCloseMapDrawer"
+          onclick="document.getElementById('mapDetailDrawer').style.display='none'" title="关闭探层">&times;</button>
       </div>
       <div class="drawer-body" id="drawerBody">
         <!-- 动态注入：基本航线与时刻信息、近60天可兑日期流、实时余票查询、跨城接驳中转建议 -->
@@ -213,7 +216,8 @@
       <div class="guide-modal-body">
         <div class="guide-alert-box">
           <strong>常见困惑解答：为什么在电脑网页上搜不到“长龙畅飞卡”？</strong>
-          <p>阿里飞猪的“随心飞 / 飞行次卡 / 畅飞卡”属于特定航司权益卡产品。根据飞猪平台规则，<strong>卡券购买与兑换入口仅在移动端开放</strong>（飞猪 App 或 淘宝 App），PC 网页端主要提供常规现金机票搜索。因此请按照下方“3 步走”方式兑换！</p>
+          <p>阿里飞猪的“随心飞 / 飞行次卡 / 畅飞卡”属于特定航司权益卡产品。根据飞猪平台规则，<strong>卡券购买与兑换入口仅在移动端开放</strong>（飞猪 App 或 淘宝 App），PC
+            网页端主要提供常规现金机票搜索。因此请按照下方“3 步走”方式兑换！</p>
         </div>
 
         <div class="guide-steps-list">
@@ -241,10 +245,12 @@
         </div>
 
         <div class="guide-links-row">
-          <a href="https://www.fliggy.com/flight/" target="_blank" rel="noopener noreferrer" class="btn-fliggy" style="justify-content:center; flex:1; padding:10px 16px;">
+          <a href="https://www.fliggy.com/flight/" target="_blank" rel="noopener noreferrer" class="btn-fliggy"
+            style="justify-content:center; flex:1; padding:10px 16px;">
             打开飞猪国内机票网页端 ↗
           </a>
-          <a href="https://www.loongair.cn/" target="_blank" rel="noopener noreferrer" class="btn-glass" style="justify-content:center; flex:1;">
+          <a href="https://www.loongair.cn/" target="_blank" rel="noopener noreferrer" class="btn-glass"
+            style="justify-content:center; flex:1;">
             长龙航空官网 ↗
           </a>
         </div>
@@ -252,39 +258,7 @@
     </div>
   </div>
 
-  <!-- 机建燃油配置模态框 -->
-  <div id="modalFeeConfig" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>
-          <span id="iconModalSettings"></span> 国内机建与燃油附加费配置
-        </h3>
-        <button id="btnCloseFeeModal" class="btn-close">&times;</button>
-      </div>
-      <p style="font-size:0.84rem; color:var(--text-secondary); margin-bottom:18px;">
-        民航发改委定期联动调整国内燃油附加费（2026年10月10日起国内航线执行最新标准：800km内燃油 ¥50，800km以上燃油 ¥90，机建 ¥50）。保存后全站税费与花费统计将自动实时重算！
-      </p>
-      <div class="form-group">
-        <label>民航发展基金 (机建费，元/人):</label>
-        <input type="number" id="inputAirportBuild" class="custom-input" style="width:100%;" min="0" max="200" value="50">
-        <span style="font-size:0.74rem; color:var(--text-muted);">通常成人固定为 50 元</span>
-      </div>
-      <div class="form-group">
-        <label>800公里及以下 燃油附加费 (元/人):</label>
-        <input type="number" id="inputFuel800Below" class="custom-input" style="width:100%;" min="0" max="200" value="50">
-        <span style="font-size:0.74rem; color:var(--text-muted);">2026年10月最新标准：50 元/人</span>
-      </div>
-      <div class="form-group">
-        <label>800公里以上 燃油附加费 (元/人):</label>
-        <input type="number" id="inputFuel800Above" class="custom-input" style="width:100%;" min="0" max="200" value="90">
-        <span style="font-size:0.74rem; color:var(--text-muted);">2026年10月最新标准：90 元/人</span>
-      </div>
-      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px;">
-        <button id="btnResetFeeConfig" class="btn-glass">恢复默认</button>
-        <button id="btnSaveFeeConfig" class="btn-primary">保存配置并重算</button>
-      </div>
-    </div>
-  </div>
+
 
   <!-- 核心巡检航线配置模态框 (上限30条，删一个方可添加一个) -->
   <div id="modalPatrolConfig" class="modal-overlay" style="display: none;">
@@ -296,19 +270,28 @@
         <button id="btnClosePatrolModal" class="btn-close">&times;</button>
       </div>
 
-      <!-- 席位状态提示条 -->
+      <!-- 席位状态提示条与自动巡检开关 -->
       <div class="patrol-status-banner">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="patrol-badge-status" id="patrolSlotsBadge">席位: 30 / 30 满载</span>
           <span style="font-size: 0.78rem; color: #047857;" id="patrolSlotsDesc">(已达上限，删一个方可添加一个)</span>
         </div>
-        <span style="font-size: 0.74rem; color: #047857;">自动巡检脚本将按此名单实时轮巡</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <label
+            style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:rgba(255,255,255,0.7); padding:3px 8px; border-radius:6px; border:1px solid rgba(4,120,87,0.2);"
+            title="控制后台是否每25分钟自动巡检这30条航线">
+            <input type="checkbox" id="switchHotPatrol"
+              style="cursor:pointer; accent-color:#0284c7; width:15px; height:15px;">
+            <span id="labelHotPatrol" style="font-size:0.75rem; font-weight:700; color:#475569;">30条自动巡检: 停用中</span>
+          </label>
+        </div>
       </div>
 
       <!-- 当前航线 Tag 流 -->
       <div class="patrol-deck-box">
         <div class="patrol-deck-header">
-          <span style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem;">已选巡检航线 (<span id="patrolListCount">30</span> 条):</span>
+          <span style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem;">已选巡检航线 (<span
+              id="patrolListCount">30</span> 条):</span>
           <span style="font-size: 0.74rem; color: var(--text-muted);">点击每条右侧的 × 即可移除释放槽位</span>
         </div>
         <div id="patrolRoutesGrid" class="patrol-routes-grid">
@@ -321,7 +304,8 @@
         <div class="patrol-add-header">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="patrol-add-title">添加新巡检航线</span>
-            <span class="badge-hangzhou" style="background: rgba(2, 132, 199, 0.08); color: var(--accent-cyan); font-size: 0.7rem; padding: 1px 6px;">可打字/拼音秒搜</span>
+            <span class="badge-hangzhou"
+              style="background: rgba(2, 132, 199, 0.08); color: var(--accent-cyan); font-size: 0.7rem; padding: 1px 6px;">可打字/拼音秒搜</span>
           </div>
           <span id="patrolAddTip" class="patrol-add-tip">席位已满，请先点击上方已有航线的 × 移除一条</span>
         </div>
@@ -345,30 +329,89 @@
         </div>
       </div>
 
-      <!-- 手动巡检触发与进度指示器 (启动后先不自动巡检，全凭用户手动按需触发) -->
-      <div class="patrol-manual-panel" style="margin-top: 16px; padding: 12px 14px; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 200px;">
-            <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+      <!-- 全量普查定时点配置 (至多3个时间点，格式 HH:mm) -->
+      <div class="patrol-times-card"
+        style="margin-top: 14px; padding: 12px 14px; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: 8px;">
+        <div
+          style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary);">🕒 全网全量普查定时
+              (至多3个时间点):</span>
+            <span id="patrolTimesTip" style="font-size: 0.74rem; color: var(--accent-cyan); font-weight: 600;">已设 2 / 3
+              个</span>
+          </div>
+          <label
+            style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:rgba(5,150,105,0.08); padding:3px 8px; border-radius:6px; border:1px solid rgba(5,150,105,0.25);"
+            title="开启后，到达设定时间自动在后台触发全量直飞普查">
+            <input type="checkbox" id="switchAllPatrol"
+              style="cursor:pointer; accent-color:#059669; width:15px; height:15px;">
+            <span id="labelAllPatrol" style="font-size:0.75rem; font-weight:700; color:#475569;">全量定时普查: 停用中</span>
+          </label>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div id="patrolTimesChips" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"></div>
+          <div id="addTimeFormWrap" style="display:inline-flex; align-items:center; gap:6px;">
+            <input type="time" id="inputNewPatrolTime" value="14:00"
+              style="padding:4px 8px; border:1px solid var(--border-subtle); border-radius:6px; font-size:0.8rem; font-weight:700;">
+            <button type="button" id="btnAddPatrolTime" class="btn-glass"
+              style="padding:4px 10px; font-size:0.78rem; font-weight:700;">+ 添加时间</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 手动巡检触发与实时进度监控 -->
+      <div class="patrol-manual-panel"
+        style="margin-top: 14px; padding: 14px; background: #f8fafc; border: 1px solid var(--border-subtle); border-radius: 8px;">
+        <div
+          style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+          <div>
+            <div
+              style="font-weight: 700; font-size: 0.86rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
               <span>手动执行巡检</span>
-              <span id="patrolRunningIndicator" class="badge-hangzhou" style="background: #e2e8f0; color: #475569; font-size: 0.7rem; padding: 1px 6px;">待命静默中</span>
+              <span id="patrolRunningIndicator" class="badge-hangzhou"
+                style="background: #e2e8f0; color: #475569; font-size: 0.7rem; padding: 1px 6px;">待命静默中</span>
             </div>
             <div id="patrolStatusText" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
-              系统平时绝不主动发包；点击右侧按钮将在后台按 4.5秒/条 慢速拟人巡检所选名单 (耗时约 2~3 分钟)
+              待命状态 (随时可由下方按钮手动触发)
             </div>
           </div>
-          <button id="btnTriggerPatrol" class="btn-primary" style="padding: 7px 16px; font-size: 0.82rem; background: linear-gradient(135deg, #0284c7, #0369a1); display: inline-flex; align-items: center; gap: 6px;">
-            <span id="iconTriggerBtn"></span> 立即开始巡检 (慢速安全)
-          </button>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button id="btnTriggerPatrolHot" class="btn-primary" type="button"
+              style="padding: 7px 14px; font-size: 0.8rem; background: linear-gradient(135deg, #0284c7, #0369a1);">
+              🚀 热门巡检 (30条)
+            </button>
+            <button id="btnTriggerPatrolAll" class="btn-primary" type="button"
+              style="padding: 7px 14px; font-size: 0.8rem; background: linear-gradient(135deg, #059669, #047857);">
+              🌐 全量普查 (397条)
+            </button>
+          </div>
         </div>
-        <!-- 动态进度条 -->
-        <div id="patrolProgressBarWrap" style="display: none; margin-top: 10px; background: rgba(0,0,0,0.08); height: 6px; border-radius: 3px; overflow: hidden;">
-          <div id="patrolProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7, #10b981); transition: width 0.3s ease;"></div>
+
+        <!-- 实时巡检动态进度条 (用户新要求：加个进度可看) -->
+        <div id="patrolProgressBox"
+          style="display:none; margin-top: 10px; padding: 10px 12px; background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px;">
+          <div
+            style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; margin-bottom:6px;">
+            <span id="patrolCurrentRouteTxt" style="font-weight:700; color:#047857;">⚡ 正在慢速巡检...</span>
+            <span id="patrolProgressPercent"
+              style="font-weight:850; color:#059669; font-variant-numeric:tabular-nums;">0%</span>
+          </div>
+          <div style="width:100%; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+            <div id="patrolProgressBar"
+              style="width:0%; height:100%; background:linear-gradient(90deg, #10b981, #059669); transition:width 0.3s ease;">
+            </div>
+          </div>
+          <div
+            style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; color:var(--text-muted); margin-top:6px;">
+            <span id="patrolCountTxt">已完成 0 / 30 条</span>
+            <span id="patrolSuccessFailTxt">成功 0 · 失败 0</span>
+          </div>
         </div>
       </div>
 
       <!-- 底部操作按钮 -->
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:22px; padding-top:14px; border-top:1px solid var(--border-subtle);">
+      <div
+        style="display:flex; justify-content:space-between; align-items:center; margin-top:22px; padding-top:14px; border-top:1px solid var(--border-subtle);">
         <button id="btnResetPatrolConfig" class="btn-glass" style="font-size:0.8rem;">恢复默认 30 条</button>
         <div style="display:flex; gap:10px;">
           <button id="btnCancelPatrolConfig" class="btn-glass" style="font-size:0.8rem;">取消</button>
@@ -380,4 +423,5 @@
 
   <script type="module" src="js/app.js"></script>
 </body>
+
 </html>

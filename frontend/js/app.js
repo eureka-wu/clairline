@@ -10,7 +10,7 @@ import { AIRPORT_GUIDES } from './airport-guide.js';
 import { CustomSelect } from './custom-select.js';
 import { ICONS } from './icons.js';
 import { FLIGHTS_SCHEDULE } from './flights-schedule.js';
-import { queryLiveFlights } from './api.js';
+import { queryLiveFlights, fetchSeatCacheFromDb } from './api.js';
 import { CHINA_PROVINCES } from './china-geo.js';
 
 // 当前状态 (默认定位长龙大本营·杭州)
@@ -31,22 +31,36 @@ let csMapCityInstance = null;
 // 全网官方放票大盘索引 (from-to => available info)
 let AVAILABLE_ROUTES_MAP = {};
 
-// 官方实时余票查验本地持久化缓存 (保存在 localStorage 中，刷新页面依然保留时间与余票，无需重复查验)
-const SEAT_QUERY_CACHE_KEY = 'changlong_seat_live_cache_v2';
-function getSeatQueryCache() {
+// 官方实时余票查验内存缓存 (核心数据源完全持久化存储在 SQLite 数据库 seat_queries 表中)
+window.LIVE_QUERY_CACHE = {};
+
+// 从后端 SQLite 数据库异步加载已持久化的查验数据
+async function loadDbSeatCache() {
   try {
-    const raw = localStorage.getItem(SEAT_QUERY_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const res = await fetchSeatCacheFromDb();
+    if (res && res.ok && res.cache) {
+      window.LIVE_QUERY_CACHE = Object.assign(window.LIVE_QUERY_CACHE || {}, res.cache);
+      // 联动刷新页面上已渲染的日期胶囊状态
+      Object.keys(res.cache).forEach(cacheKey => {
+        const item = res.cache[cacheKey];
+        const matchingPills = document.querySelectorAll(`[data-check-key="${cacheKey}"]`);
+        if (matchingPills && matchingPills.length > 0) {
+          const timeLabel = item.timeLabel || '已查';
+          const badgeHtml = (item.count > 0)
+            ? `<span class="pill-check-tag pill-tag-success">余${item.count} · ${timeLabel}</span>`
+            : `<span class="pill-check-tag pill-tag-empty">兑完 · ${timeLabel}</span>`;
+          matchingPills.forEach(pill => {
+            pill.classList.add('is-checked');
+            const baseText = pill.getAttribute('data-base-text') || pill.textContent.replace(/(余\d+|已兑完|兑完|查票中\.\.\.|·|\d{1,2}:\d{2}查|\d{1,2}-\d{1,2}查)/g, '').trim();
+            pill.innerHTML = `<span class="pill-date-txt">${baseText}</span>${badgeHtml}`;
+          });
+        }
+      });
+    }
   } catch (e) {
-    return {};
+    console.warn('从数据库加载席位缓存提示:', e);
   }
 }
-function setSeatQueryCache(cache) {
-  try {
-    localStorage.setItem(SEAT_QUERY_CACHE_KEY, JSON.stringify(cache));
-  } catch (e) {}
-}
-window.LIVE_QUERY_CACHE = getSeatQueryCache();
 
 // 格式化查询时间微标 (当天显示 "16:18查"，非当天显示 "10-21查")
 function formatCheckTime(timestamp, fallback) {
@@ -125,6 +139,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleOnlyAvail = document.getElementById('toggleOnlyAvailable');
   if (toggleOnlyAvail) {
     toggleOnlyAvail.addEventListener('change', () => {
+      renderDirectRoutes();
+    });
+  }
+
+  const toggle3Days = document.getElementById('toggleWithin3Days');
+  if (toggle3Days) {
+    toggle3Days.addEventListener('change', () => {
       renderDirectRoutes();
     });
   }
@@ -246,37 +267,34 @@ function buildDestinationOptions(originCity) {
       return [
         { 
           value: '全部', 
-          label: '暂无直飞目的地', 
-          sublabel: `${originCity}暂无出港直飞航线`, 
-          badge: '无直飞',
-          group: '全部直达'
+          label: '全部直飞', 
+          sublabel: '0城可飞', 
+          badge: '暂无',
+          group: '常用选项'
         }
       ];
     }
 
     const firstOption = {
       value: '全部',
-      label: '全部直飞目的地',
-      sublabel: `查看【${originCity}】直达全部 ${directDests.length} 个城市`,
-      badge: `${directDests.length}个直达`,
-      group: '全部直达'
+      label: '全部直飞',
+      sublabel: `${directDests.length}城可飞`,
+      badge: '全部',
+      group: '常用选项'
     };
 
-    // 严格过滤：仅收录该出发地能直达的目的地城市，不包含任何需中转的冗余城市
+    // 严格过滤：仅收录该出发地能直达的目的地城市，移除km与冗余旅游宣传tag，保持与出发地同样极简
     const destItems = directDests.map(city => {
       const meta = CITY_METADATA[city] || {};
-      const route = ROUTES_NETWORK.find(r => r.from === originCity && r.to === city);
-      const distanceStr = route && route.distance ? `${route.distance}km` : '';
       const region = meta.region || '其他';
       const province = meta.province || '';
-      const sublabel = [province, distanceStr].filter(Boolean).join(' · ');
 
       return {
         value: city,
         label: city,
-        sublabel: sublabel,
-        badge: meta.tags?.[0] || `${region}直达`,
-        group: `${region}地区 (${originCity}直飞)`,
+        sublabel: province,
+        badge: '直飞',
+        group: `${region}地区`,
         region: region,
         pinyin: meta.pinyin || ''
       };
@@ -297,10 +315,10 @@ function buildDestinationOptions(originCity) {
   // 情况 2: 出发地为“全部”（全网漫游反查）
   const firstOption = {
     value: '全部',
-    label: '全部直飞目的地',
-    sublabel: '全国 71 城市漫游反查',
-    badge: '全网71城',
-    group: '全部航线'
+    label: '全部直飞',
+    sublabel: '71城全网',
+    badge: '全部',
+    group: '常用选项'
   };
 
   const allDestItems = Object.keys(CITY_METADATA).map(city => {
@@ -312,7 +330,7 @@ function buildDestinationOptions(originCity) {
       value: city,
       label: city,
       sublabel: meta.province || '',
-      badge: inCount > 0 ? `${inCount}城直通` : '长龙通航点',
+      badge: inCount > 0 ? `${inCount}直飞` : '通航点',
       group: `${region}地区`,
       region: region,
       pinyin: meta.pinyin || ''
@@ -403,70 +421,75 @@ function initCustomSelects() {
     }
   });
 
-  // 1.5 目的地选择器 (解决用户选完出发地后只看可选目的地的精确匹配需求)
-  csDestInstance = new CustomSelect({
-    container: '#csDestMount',
-    options: buildDestinationOptions(currentOrigin),
-    value: currentDestination,
-    placeholder: '选择目的地',
-    onChange: (val) => {
-      currentDestination = val;
-      renderDirectRoutes();
-    }
-  });
-
-  // 互换出发地与目的地
-  const btnSwap = document.getElementById('btnSwapCity');
-  if (btnSwap) {
-    btnSwap.addEventListener('click', () => {
-      if (currentDestination === '全部') {
-        showToast('请先选择一个具体目的地再进行互换');
-        return;
-      }
-      const prevOrigin = currentOrigin;
-      const prevDest = currentDestination;
-
-      currentOrigin = prevDest;
-
-      // 计算互换后新出发地的可选目的地列表
-      const nextDestOptions = buildDestinationOptions(currentOrigin);
-      // 自动匹配：检查原出发地是否在反向直飞列表中
-      const canFlyBack = nextDestOptions.some(opt => opt.value === prevOrigin);
-      currentDestination = canFlyBack ? prevOrigin : '全部';
-
-      csOriginInstance.setValue(currentOrigin);
-      csDestInstance.setOptions(nextDestOptions, currentDestination);
-      renderDirectRoutes();
-
-      if (canFlyBack) {
-        showToast(`已互换航线：${currentOrigin} ⇄ ${currentDestination}`);
-      } else {
-        showToast(`已切换出发地为【${currentOrigin}】，已自动匹配为其所有直飞目的地`);
+  // 1.5 目的地选择器 (若页面未挂载则默认查看出发地所有航线)
+  const destMount = document.querySelector('#csDestMount');
+  if (destMount) {
+    csDestInstance = new CustomSelect({
+      container: destMount,
+      options: buildDestinationOptions(currentOrigin),
+      value: currentDestination,
+      placeholder: '选择目的地',
+      onChange: (val) => {
+        currentDestination = val;
+        renderDirectRoutes();
       }
     });
+
+    const btnSwap = document.getElementById('btnSwapCity');
+    if (btnSwap) {
+      btnSwap.addEventListener('click', () => {
+        if (currentDestination === '全部') {
+          showToast('请先选择一个具体目的地再进行互换');
+          return;
+        }
+        const prevOrigin = currentOrigin;
+        const prevDest = currentDestination;
+        currentOrigin = prevDest;
+        const nextDestOptions = buildDestinationOptions(currentOrigin);
+        const canFlyBack = nextDestOptions.some(opt => opt.value === prevOrigin);
+        currentDestination = canFlyBack ? prevOrigin : '全部';
+        csOriginInstance.setValue(currentOrigin);
+        csDestInstance.setOptions(nextDestOptions, currentDestination);
+        renderDirectRoutes();
+        if (canFlyBack) {
+          showToast(`已互换航线：${currentOrigin} ⇄ ${currentDestination}`);
+        } else {
+          showToast(`已切换出发地为【${currentOrigin}】，已自动匹配为其所有直飞目的地`);
+        }
+      });
+    }
+  } else {
+    currentDestination = '全部';
+    csDestInstance = null;
   }
 
-  // 2. 区域筛选器
-  csRegionInstance = new CustomSelect({
-    container: '#csRegionMount',
-    options: [
-      { value: '全部', label: '全部区域', badge: '全网' },
-      { value: '西北', label: '西北地区', sublabel: '新疆/宁夏/青海/甘肃/陕西' },
-      { value: '西南', label: '西南地区', sublabel: '云南/四川/贵州/重庆' },
-      { value: '东北', label: '东北地区', sublabel: '黑龙江/吉林/辽宁' },
-      { value: '华东', label: '华东地区', sublabel: '江浙沪/山东/江西/福建' },
-      { value: '华南', label: '华南地区', sublabel: '广东/海南/广西' },
-      { value: '华中', label: '华中地区', sublabel: '湖北/湖南/河南' },
-      { value: '华北', label: '华北地区', sublabel: '北京/内蒙古/山西/河北' }
-    ],
-    value: currentRegion,
-    placeholder: '区域筛选',
-    searchable: false,
-    onChange: (val) => {
-      currentRegion = val;
-      renderDirectRoutes();
-    }
-  });
+  // 2. 区域筛选器 (若页面已移除则默认全部区域)
+  const regionMount = document.querySelector('#csRegionMount');
+  if (regionMount) {
+    csRegionInstance = new CustomSelect({
+      container: regionMount,
+      options: [
+        { value: '全部', label: '全部区域', badge: '全网' },
+        { value: '西北', label: '西北地区', sublabel: '新疆/宁夏/青海/甘肃/陕西' },
+        { value: '西南', label: '西南地区', sublabel: '云南/四川/贵州/重庆' },
+        { value: '东北', label: '东北地区', sublabel: '黑龙江/吉林/辽宁' },
+        { value: '华东', label: '华东地区', sublabel: '江浙沪/山东/江西/福建' },
+        { value: '华南', label: '华南地区', sublabel: '广东/海南/广西' },
+        { value: '华中', label: '华中地区', sublabel: '湖北/湖南/河南' },
+        { value: '华北', label: '华北地区', sublabel: '北京/内蒙古/山西/河北' }
+      ],
+      value: currentRegion,
+      placeholder: '区域筛选',
+      searchable: false,
+      onChange: (val) => {
+        currentRegion = val;
+        renderDirectRoutes();
+      }
+    });
+  } else {
+    currentRegion = '全部';
+    csRegionInstance = null;
+  }
 
   // 3. 接驳出发地与目的地
   csTransferOriginInstance = new CustomSelect({
@@ -513,21 +536,41 @@ function initTabNavigation() {
   const tabBtns = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
 
+  const switchTab = (targetTab) => {
+    tabBtns.forEach(b => {
+      if (b.getAttribute('data-tab') === targetTab) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+    tabContents.forEach(c => c.style.display = 'none');
+
+    const contentEl = document.getElementById(targetTab);
+    if (contentEl) contentEl.style.display = 'block';
+
+    if (targetTab === 'tab-map') {
+      document.body.classList.add('tab-map-active');
+      renderMapExplorer();
+    } else {
+      document.body.classList.remove('tab-map-active');
+    }
+  };
+
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabContents.forEach(c => c.style.display = 'none');
-
-      btn.classList.add('active');
-      const contentEl = document.getElementById(targetTab);
-      if (contentEl) contentEl.style.display = 'block';
-
-      if (targetTab === 'tab-map') {
-        renderMapExplorer();
-      }
+      switchTab(targetTab);
     });
   });
+
+  // 初始状态同步
+  const initialActive = document.querySelector('.tab-btn.active');
+  if (initialActive && initialActive.getAttribute('data-tab') === 'tab-map') {
+    document.body.classList.add('tab-map-active');
+  } else {
+    document.body.classList.remove('tab-map-active');
+  }
 }
 
 /**
@@ -536,13 +579,17 @@ function initTabNavigation() {
 function initFeeConfigModal() {
   const modal = document.getElementById('modalFeeConfig');
   const btnOpen = document.getElementById('btnOpenFeeConfig');
+  if (!modal || !btnOpen) return;
+
   const btnClose = document.getElementById('btnCloseFeeModal');
   const btnReset = document.getElementById('btnResetFeeConfig');
   const btnSave = document.getElementById('btnSaveFeeConfig');
 
   const updateHeaderLabel = (config) => {
-    document.getElementById('currentFeeLabel').textContent = 
-      `税费: 机建¥${config.airportBuildFee} / 燃油¥${config.fuel800Above}`;
+    const label = document.getElementById('currentFeeLabel');
+    if (label) {
+      label.textContent = `税费: 机建¥${config.airportBuildFee} / 燃油¥${config.fuel800Above}`;
+    }
   };
 
   const syncFormValues = () => {
@@ -620,12 +667,41 @@ function initPatrolConfigModal() {
   const btnAdd = document.getElementById('btnAddPatrolRoute');
   const statusBanner = document.querySelector('.patrol-status-banner');
 
+  // 全量定时配置控件
+  const patrolTimesChips = document.getElementById('patrolTimesChips');
+  const patrolTimesTip = document.getElementById('patrolTimesTip');
+  const inputNewPatrolTime = document.getElementById('inputNewPatrolTime');
+  const btnAddPatrolTime = document.getElementById('btnAddPatrolTime');
+
+  // 巡检规则总开关 (用户新需求：可以加一个开关 是否启用 启用才按照规则执行)
+  const switchHotPatrol = document.getElementById('switchHotPatrol');
+  const labelHotPatrol = document.getElementById('labelHotPatrol');
+  const switchAllPatrol = document.getElementById('switchAllPatrol');
+  const labelAllPatrol = document.getElementById('labelAllPatrol');
+
+  // 手动执行与进度监控控件
+  const btnTriggerHot = document.getElementById('btnTriggerPatrolHot');
+  const btnTriggerAll = document.getElementById('btnTriggerPatrolAll');
+  const indicator = document.getElementById('patrolRunningIndicator');
+  const statusText = document.getElementById('patrolStatusText');
+  const progressBox = document.getElementById('patrolProgressBox');
+  const currentRouteTxt = document.getElementById('patrolCurrentRouteTxt');
+  const progressPercent = document.getElementById('patrolProgressPercent');
+  const progressBar = document.getElementById('patrolProgressBar');
+  const countTxt = document.getElementById('patrolCountTxt');
+  const successFailTxt = document.getElementById('patrolSuccessFailTxt');
+
   if (!modal || !btnOpen) return;
 
   const MAX_SLOTS = 30;
+  const MAX_TIMES = 3;
   let currentRoutes = [...DEFAULT_HOT_ROUTES];
+  let currentPatrolTimes = ['08:30', '20:00'];
+  let currentSwitches = { hot_enabled: false, all_enabled: false };
   let csPatrolFromInstance = null;
   let csPatrolToInstance = null;
+  let pollTimer = null;
+  let lastWasRunning = false;
 
   const updateHeaderDisplay = () => {
     if (btnLabel) {
@@ -633,7 +709,163 @@ function initPatrolConfigModal() {
     }
   };
 
-  // 从本地 localStorage 或后端 API 同步当前配置
+  // 0. 同步巡检开关状态 (GET /api/patrol/switches)
+  const syncSwitches = async () => {
+    try {
+      const res = await fetch('/api/patrol/switches');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.switches) {
+          currentSwitches = json.switches;
+          updateSwitchesUI();
+        }
+      }
+    } catch (e) {
+      console.warn('获取巡检开关失败:', e);
+    }
+  };
+
+  const updateSwitchesUI = () => {
+    if (switchHotPatrol) {
+      switchHotPatrol.checked = Boolean(currentSwitches.hot_enabled);
+      if (labelHotPatrol) {
+        labelHotPatrol.textContent = switchHotPatrol.checked ? '30条自动巡检: 已启用 (每25m)' : '30条自动巡检: 停用中';
+        labelHotPatrol.style.color = switchHotPatrol.checked ? '#047857' : '#64748b';
+      }
+    }
+    if (switchAllPatrol) {
+      switchAllPatrol.checked = Boolean(currentSwitches.all_enabled);
+      if (labelAllPatrol) {
+        labelAllPatrol.textContent = switchAllPatrol.checked ? '全量定时普查: 已启用' : '全量定时普查: 停用中';
+        labelAllPatrol.style.color = switchAllPatrol.checked ? '#047857' : '#64748b';
+      }
+    }
+  };
+
+  const saveSwitchesToServer = async (hotVal, allVal) => {
+    try {
+      const res = await fetch('/api/patrol/switches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hot_enabled: hotVal, all_enabled: allVal })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.switches) currentSwitches = json.switches;
+        updateSwitchesUI();
+      }
+    } catch (e) {
+      console.warn('保存巡检开关失败:', e);
+    }
+  };
+
+  if (switchHotPatrol) {
+    switchHotPatrol.addEventListener('change', () => {
+      const isChecked = switchHotPatrol.checked;
+      saveSwitchesToServer(isChecked, switchAllPatrol ? switchAllPatrol.checked : false);
+      showToast(isChecked ? '已开启【30条核心航线】后台每25分钟自动轮巡' : '已停用【30条核心航线】后台自动巡检 (仅手动触发)');
+    });
+  }
+
+  if (switchAllPatrol) {
+    switchAllPatrol.addEventListener('change', () => {
+      const isChecked = switchAllPatrol.checked;
+      saveSwitchesToServer(switchHotPatrol ? switchHotPatrol.checked : false, isChecked);
+      showToast(isChecked ? '已开启【全网全量航线】到达设定时间自动普查' : '已停用【全网全量航线】定时自动普查 (仅手动触发)');
+    });
+  }
+
+  // 1. 同步全量定时时间配置 (GET /api/patrol/times)
+  const syncPatrolTimes = async () => {
+    try {
+      const res = await fetch('/api/patrol/times');
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.times)) {
+          currentPatrolTimes = json.times.slice(0, MAX_TIMES);
+        }
+      }
+    } catch (e) {
+      console.warn('获取全量普查定时时间异常:', e);
+    }
+    renderPatrolTimes();
+  };
+
+  const renderPatrolTimes = () => {
+    if (!patrolTimesChips) return;
+    const len = currentPatrolTimes.length;
+    if (patrolTimesTip) {
+      patrolTimesTip.textContent = `已设 ${len} / ${MAX_TIMES} 个`;
+      patrolTimesTip.style.color = len >= MAX_TIMES ? '#ea580c' : 'var(--accent-cyan)';
+    }
+
+    if (currentPatrolTimes.length === 0) {
+      patrolTimesChips.innerHTML = `<span style="font-size:0.75rem; color:var(--text-muted);">暂未设定全量巡检时间点 (可从右侧添加)</span>`;
+    } else {
+      patrolTimesChips.innerHTML = currentPatrolTimes.map((timeStr, idx) => `
+        <span class="patrol-time-pill" style="display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:0.8rem; font-weight:700;">
+          <span>⏰ ${timeStr}</span>
+          <button type="button" class="btn-remove-time" data-idx="${idx}" title="删除该时间点" style="background:none; border:none; cursor:pointer; font-size:0.95rem; line-height:1; color:#93c5fd; padding:0 2px;">&times;</button>
+        </span>
+      `).join('');
+
+      patrolTimesChips.querySelectorAll('.btn-remove-time').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-idx'), 10);
+          if (!isNaN(idx) && idx >= 0 && idx < currentPatrolTimes.length) {
+            const removed = currentPatrolTimes.splice(idx, 1)[0];
+            renderPatrolTimes();
+            savePatrolTimesToServer();
+            showToast(`已删除巡检定时【${removed}】`);
+          }
+        });
+      });
+    }
+
+    if (btnAddPatrolTime) {
+      btnAddPatrolTime.disabled = len >= MAX_TIMES;
+      btnAddPatrolTime.style.opacity = len >= MAX_TIMES ? '0.5' : '1';
+    }
+  };
+
+  const savePatrolTimesToServer = async () => {
+    try {
+      await fetch('/api/patrol/times', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ times: currentPatrolTimes })
+      });
+    } catch (e) {
+      console.warn('保存巡检时间异常:', e);
+    }
+  };
+
+  if (btnAddPatrolTime && inputNewPatrolTime) {
+    btnAddPatrolTime.addEventListener('click', async () => {
+      if (currentPatrolTimes.length >= MAX_TIMES) {
+        showToast(`至多只能设置 ${MAX_TIMES} 个全量巡检时间点！请先删除不需要的`);
+        return;
+      }
+      const val = (inputNewPatrolTime.value || '').trim();
+      if (!val || !/^\d{1,2}:\d{2}$/.test(val)) {
+        showToast('请选择有效的时分 (HH:mm)！');
+        return;
+      }
+      const normalized = val.length === 4 ? `0${val}` : val;
+      if (currentPatrolTimes.includes(normalized)) {
+        showToast(`时间点【${normalized}】已存在，请勿重复添加`);
+        return;
+      }
+      currentPatrolTimes.push(normalized);
+      currentPatrolTimes.sort();
+      renderPatrolTimes();
+      await savePatrolTimesToServer();
+      showToast(`已成功添加每日全量巡检定时【${normalized}】`);
+    });
+  }
+
+  // 2. 从本地或后端同步 30 条热门航线配置
   const syncFromServer = async () => {
     try {
       const res = await fetch('/api/patrol/hot-routes');
@@ -656,6 +888,8 @@ function initPatrolConfigModal() {
       }
     }
     updateHeaderDisplay();
+    syncPatrolTimes();
+    syncSwitches();
   };
 
   // 根据出发城市构建直飞到达城市的可选项
@@ -666,7 +900,6 @@ function initPatrolConfigModal() {
     }
     return dests.map(city => {
       const meta = CITY_METADATA[city] || {};
-      const region = meta.region || '其他';
       return {
         value: city,
         label: city,
@@ -682,7 +915,6 @@ function initPatrolConfigModal() {
     const mountFrom = document.getElementById('patrolFromMount');
     const mountTo = document.getElementById('patrolToMount');
     if (!mountFrom || !mountTo) return;
-
     if (csPatrolFromInstance && csPatrolToInstance) return;
 
     const origins = Object.keys(DIRECT_MAP).filter(city => (DIRECT_MAP[city] || []).length > 0);
@@ -730,20 +962,14 @@ function initPatrolConfigModal() {
     });
   };
 
-  // 渲染 30 槽位已选列表与满额锁定控制（删一个才能加一个）
+  // 渲染 30 槽位已选列表与满额锁定控制
   const renderList = () => {
     const len = currentRoutes.length;
     if (listCount) listCount.textContent = len;
-
     const isFull = len >= MAX_SLOTS;
 
-    // 顶部状态栏与 Badge 状态
     if (statusBanner) {
-      if (isFull) {
-        statusBanner.className = 'patrol-status-banner is-full';
-      } else {
-        statusBanner.className = 'patrol-status-banner is-available';
-      }
+      statusBanner.className = isFull ? 'patrol-status-banner is-full' : 'patrol-status-banner is-available';
     }
 
     if (badgeStatus) {
@@ -766,7 +992,6 @@ function initPatrolConfigModal() {
       }
     }
 
-    // 添加卡片锁定/置灰控制（满额时禁用）
     if (addCard) {
       if (isFull) {
         addCard.classList.add('is-locked');
@@ -783,24 +1008,18 @@ function initPatrolConfigModal() {
       }
     }
 
-    // 渲染精致航线 Tag 流
     if (routesGrid) {
       if (currentRoutes.length === 0) {
         routesGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 24px 0;">当前暂无巡检航线，可从下方添加</div>`;
       } else {
-        routesGrid.innerHTML = currentRoutes.map((r, idx) => {
-          const from = r[0];
-          const to = r[1];
-          return `
-            <div class="patrol-route-pill">
-              <span class="patrol-route-idx">${idx + 1}</span>
-              <span class="patrol-route-name">${from} <span class="route-sep">→</span> ${to}</span>
-              <button type="button" class="patrol-route-remove" data-idx="${idx}" title="移除该航线以腾出席位">&times;</button>
-            </div>
-          `;
-        }).join('');
+        routesGrid.innerHTML = currentRoutes.map((r, idx) => `
+          <div class="patrol-route-pill">
+            <span class="patrol-route-idx">${idx + 1}</span>
+            <span class="patrol-route-name">${r[0]} <span class="route-sep">→</span> ${r[1]}</span>
+            <button type="button" class="patrol-route-remove" data-idx="${idx}" title="移除该航线以腾出席位">&times;</button>
+          </div>
+        `).join('');
 
-        // 绑定删除按钮
         routesGrid.querySelectorAll('.patrol-route-remove').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -869,11 +1088,13 @@ function initPatrolConfigModal() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ routes: currentRoutes })
         });
+        await savePatrolTimesToServer();
+        await saveSwitchesToServer(switchHotPatrol ? switchHotPatrol.checked : false, switchAllPatrol ? switchAllPatrol.checked : false);
         if (res.ok) {
           const ret = await res.json();
-          showToast(`巡检航线已成功保存！共 ${ret.count || currentRoutes.length} 条已实时生效`);
+          showToast(`巡检配置已成功保存！共 ${ret.count || currentRoutes.length} 条航线与定时/开关规则已生效`);
         } else {
-          showToast('已保存到本地配置 (后端服务正在后台同步)');
+          showToast('已保存配置 (后端后台同步中)');
         }
       } catch (err) {
         showToast('已保存到本地浏览器配置');
@@ -883,21 +1104,26 @@ function initPatrolConfigModal() {
     });
   }
 
-  // 手动触发巡检与实时进度轮询 (平时待命，用户点击才执行)
-  const btnTrigger = document.getElementById('btnTriggerPatrol');
-  const indicator = document.getElementById('patrolRunningIndicator');
-  const statusText = document.getElementById('patrolStatusText');
-  const barWrap = document.getElementById('patrolProgressBarWrap');
-  const bar = document.getElementById('patrolProgressBar');
-
-  let pollTimer = null;
-
+  // 3. 手动巡检触发与实时动态进度监控 (支持热门30条 & 全量397条)
   const updatePatrolProgressUI = (state) => {
     if (!state) return;
-    const isRunning = state.running;
+    const isRunning = Boolean(state.running);
+    const mode = state.mode || 'hot';
+    const modeName = mode === 'all' ? '全量普查' : '热门巡检';
+    const pct = Math.min(100, Math.max(0, state.percent || 0));
+
+    // 无论弹窗打开还是关闭，顶部导航栏按钮均实时呈现巡检动态
+    if (btnLabel) {
+      if (isRunning) {
+        btnLabel.innerHTML = `<span class="spin">⏳</span> ${modeName} ${pct}%`;
+      } else {
+        btnLabel.textContent = `巡检航线: ${currentRoutes.length}/${MAX_SLOTS}`;
+      }
+    }
+
     if (indicator) {
       if (isRunning) {
-        indicator.textContent = '慢速拟人巡检中';
+        indicator.textContent = `⚡ ${modeName}中`;
         indicator.style.background = '#fef3c7';
         indicator.style.color = '#b45309';
       } else {
@@ -906,36 +1132,88 @@ function initPatrolConfigModal() {
         indicator.style.color = '#475569';
       }
     }
+
     if (statusText) {
-      statusText.textContent = state.status_text || '待命状态 (无正在运行的巡检任务)';
+      statusText.textContent = state.status_text || '待命状态 (随时可由下方按钮手动触发)';
     }
-    if (btnTrigger) {
-      btnTrigger.disabled = isRunning;
-      btnTrigger.innerHTML = isRunning 
-        ? `<span class="spin">⏳</span> 巡检执行中 (${state.completed || 0}/${state.total || 30})...` 
-        : `<span>🚀</span> 立即开始巡检 (慢速安全)`;
+
+    if (btnTriggerHot) {
+      btnTriggerHot.disabled = isRunning;
+      btnTriggerHot.style.opacity = isRunning ? '0.6' : '1';
     }
-    if (barWrap && bar) {
-      if (isRunning) {
-        barWrap.style.display = 'block';
-        const percent = state.total > 0 ? Math.round((state.completed / state.total) * 100) : 0;
-        bar.style.width = `${percent}%`;
+    if (btnTriggerAll) {
+      btnTriggerAll.disabled = isRunning;
+      btnTriggerAll.style.opacity = isRunning ? '0.6' : '1';
+    }
+
+    // 实时进度面板展示控制
+    if (progressBox) {
+      if (isRunning || state.completed > 0) {
+        progressBox.style.display = 'block';
+        if (progressBar) progressBar.style.width = `${pct}%`;
+        if (progressPercent) progressPercent.textContent = `${pct}%`;
+
+        if (currentRouteTxt) {
+          if (isRunning && state.current_route) {
+            let rStr = '';
+            if (Array.isArray(state.current_route)) {
+              rStr = `${state.current_route[0]} ➔ ${state.current_route[1]}`;
+            } else {
+              rStr = String(state.current_route);
+            }
+            currentRouteTxt.innerHTML = `⚡ 正在探测: <strong style="color:#047857;">${rStr}</strong>`;
+          } else if (isRunning) {
+            currentRouteTxt.textContent = `⚡ 正在执行 ${modeName}...`;
+          } else if (state.failed > 0 && state.success === 0) {
+            currentRouteTxt.innerHTML = `<span style="color:#dc2626; font-weight:700;">⚠️ 巡检已自动安全熔断：微信登录凭据已过期 (100001)，请手机微信查一次票更新 cl.saz</span>`;
+          } else {
+            currentRouteTxt.textContent = `✅ 巡检已圆满完成！数据已实时入库大盘`;
+          }
+        }
+
+        if (countTxt) {
+          countTxt.textContent = `已完成 ${state.completed || 0} / ${state.total || 0} 条`;
+        }
+        if (successFailTxt) {
+          successFailTxt.textContent = `成功 ${state.success || 0} · 失败 ${state.failed || 0}`;
+        }
       } else {
-        barWrap.style.display = 'none';
-        bar.style.width = '0%';
+        progressBox.style.display = 'none';
       }
     }
+
+    // 状态转为完成时的联动：只有真正成功更新数据才提示完成，若失败/中断则提示警告
+    if (lastWasRunning && !isRunning) {
+      if (state.failed > 0 && state.success === 0) {
+        showToast('⚠️ 巡检已中断：微信登录凭据已失效 (100001)，请手机微信查一次票更新 cl.saz');
+      } else if (state.success > 0) {
+        showToast(`🎉 巡检已圆满完成！已成功覆写 ${state.success} 条航线最新放票日历`);
+        initAvailableRoutesData();
+      }
+    }
+    lastWasRunning = isRunning;
   };
 
   const pollPatrolStatus = async () => {
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
     try {
       const res = await fetch('/api/patrol/status');
       if (res.ok) {
         const json = await res.json();
         const state = json.state;
         updatePatrolProgressUI(state);
+        // 关键逻辑：
+        // 1. 如果任务还在运行中 (running === true)：
+        //    - 弹窗打开时：以 1.5 秒跟进平滑动画
+        //    - 弹窗关闭时：以 3.5 秒低频心跳后台跟进，完成后自动提醒并刷新大盘
+        // 2. 如果任务并未运行 (running === false)：
+        //    - 立即彻底停止轮询！不再排队任何后续请求，网络完全静止！
         if (state && state.running) {
-          pollTimer = setTimeout(pollPatrolStatus, 2000);
+          const nextInterval = (modal && modal.style.display === 'flex') ? 1500 : 3500;
+          pollTimer = setTimeout(pollPatrolStatus, nextInterval);
         } else {
           pollTimer = null;
         }
@@ -945,30 +1223,45 @@ function initPatrolConfigModal() {
     }
   };
 
-  if (btnTrigger) {
-    btnTrigger.addEventListener('click', async () => {
-      try {
-        const res = await fetch('/api/patrol/trigger', { method: 'POST' });
-        const json = await res.json();
-        if (res.ok && json.ok) {
-          showToast('已在后台启动慢速拟人巡检 (~4.5秒/条，耗时约2~3分钟)');
-          if (pollTimer) clearTimeout(pollTimer);
-          pollPatrolStatus();
-        } else {
-          showToast(json.error || '启动巡检失败');
-        }
-      } catch (err) {
-        showToast('请求后端巡检接口失败，请检查服务状态');
+  const triggerPatrolRun = async (mode) => {
+    try {
+      const res = await fetch('/api/patrol/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        showToast(mode === 'all' 
+          ? '已启动全网全量普查 (397条直飞航线，可在本面板查看实时进度)' 
+          : '已启动核心热门巡检 (30条高频航线，可在本面板查看实时进度)');
+        if (pollTimer) clearTimeout(pollTimer);
+        pollPatrolStatus();
+      } else {
+        showToast(json.error || '启动巡检失败');
+        pollPatrolStatus();
       }
-    });
+    } catch (err) {
+      showToast('请求后端巡检接口失败，请检查服务状态');
+    }
+  };
+
+  if (btnTriggerHot) {
+    btnTriggerHot.addEventListener('click', () => triggerPatrolRun('hot'));
+  }
+  if (btnTriggerAll) {
+    btnTriggerAll.addEventListener('click', () => triggerPatrolRun('all'));
   }
 
   // 弹窗开关控制
   const openModal = () => {
     initCitySelects();
     renderList();
-    pollPatrolStatus();
+    renderPatrolTimes();
+    syncSwitches();
     modal.style.display = 'flex';
+    // 打开弹窗仅查询一次当前静态状态
+    pollPatrolStatus();
   };
   const closeModal = () => {
     modal.style.display = 'none';
@@ -1008,6 +1301,9 @@ let currentRouteSort = 'time-asc';
 
 window.setRouteSort = function(sortType) {
   currentRouteSort = sortType;
+  document.querySelectorAll('#routeSortBar .sort-pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-sort') === sortType);
+  });
   renderDirectRoutes();
 };
 
@@ -1018,10 +1314,13 @@ window.setRouteSort = function(sortType) {
 function renderDirectRoutes() {
   const container = document.getElementById('routesContainer') || document.getElementById('routesGrid');
   const summaryEl = document.getElementById('originSummary');
+  const setSummaryText = (text) => {
+    if (summaryEl) summaryEl.textContent = text;
+  };
 
   // Case 1: 出发地与目的地相同
   if (currentOrigin !== '全部' && currentDestination !== '全部' && currentOrigin === currentDestination) {
-    summaryEl.textContent = `出发地与目的地不能相同，请选择不同的目的地城市`;
+    setSummaryText(`出发地与目的地不能相同，请选择不同的目的地城市`);
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 48px 20px; color: var(--text-secondary); background:#ffffff; border-radius:var(--radius-md); border:1px solid var(--border-subtle);">
         <p style="font-size: 1.05rem; font-weight:700; color:var(--text-primary); margin-bottom: 6px;">出发地与目的地相同 (${currentOrigin})</p>
@@ -1040,7 +1339,7 @@ function renderDirectRoutes() {
       filtered = filtered.filter(item => item.region === currentRegion);
     }
 
-    summaryEl.textContent = `出发共 ${filtered.length} 个直飞目的地`;
+    setSummaryText(`出发共 ${filtered.length} 个直飞目的地`);
 
     renderRouteCards(container, filtered, currentOrigin);
     return;
@@ -1065,12 +1364,12 @@ function renderDirectRoutes() {
         airport: destMeta.airport || '',
         tax: tax.totalTax
       }];
-      summaryEl.textContent = `${currentOrigin} ➔ ${currentDestination}`;
+      setSummaryText(`${currentOrigin} ➔ ${currentDestination}`);
       renderRouteCards(container, matched, currentOrigin);
     } else {
       // 无直飞，智能提示中转
       const hasReverse = (DIRECT_MAP[currentDestination] || []).includes(currentOrigin);
-      summaryEl.textContent = `暂无直飞`;
+      setSummaryText(`暂无直飞`);
       container.innerHTML = `
         <div style="grid-column: 1 / -1; background:#ffffff; border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:36px 24px; text-align:center; box-shadow:var(--shadow-subtle);">
           <h3 style="font-size:1.15rem; font-weight:800; color:var(--text-primary); margin-bottom:8px;">
@@ -1127,76 +1426,132 @@ function renderDirectRoutes() {
       filtered = filtered.filter(item => item.region === currentRegion);
     }
 
-    summaryEl.textContent = `共 ${filtered.length} 个城市直飞【${currentDestination}】`;
+    setSummaryText(`共 ${filtered.length} 个城市直飞【${currentDestination}】`);
     renderRouteCards(container, filtered, null);
     return;
   }
 
-  // Case 5: 出发地 == 全部，目的地 == 全部 （展示热门枢纽直飞航线）
-  summaryEl.textContent = '';
-  const hotList = [];
-  ['杭州', '银川', '长春', '广州', '成都', '西安'].forEach(hub => {
-    (DIRECT_MAP[hub] || []).slice(0, 5).forEach(dest => {
-      const routeInfo = ROUTES_NETWORK.find(r => r.from === hub && r.to === dest) || {};
-      const tax = calculateTaxes(routeInfo.distance || 1000);
-      const destMeta = CITY_METADATA[dest] || {};
-      hotList.push({
-        from: hub,
-        to: dest,
-        distance: routeInfo.distance || 0,
-        isOver800Km: Boolean(routeInfo.isOver800Km),
-        seasonStatus: routeInfo.seasonStatus || '正常执飞',
-        hasReturn: (DIRECT_MAP[dest] || []).includes(hub),
+  // Case 5: 出发地 == 全部，目的地 == 全部 （展示全网全部航线，解决为何才24条问题）
+  const allRoutesList = [];
+  const seenPair = new Set();
+
+  // 优先从 AVAILABLE_ROUTES_MAP 提取所有有放票记录的航线 (覆盖大盘全量 309 条)
+  Object.values(AVAILABLE_ROUTES_MAP).forEach(item => {
+    const fromCity = item.from;
+    const toCity = item.to;
+    const pairKey = `${fromCity}-${toCity}`;
+    if (seenPair.has(pairKey)) return;
+    seenPair.add(pairKey);
+
+    const routeInfo = ROUTES_NETWORK.find(r => r.from === fromCity && r.to === toCity) || {};
+    const destMeta = CITY_METADATA[toCity] || {};
+    const tax = calculateTaxes(routeInfo.distance || 1000);
+    allRoutesList.push({
+      from: fromCity,
+      to: toCity,
+      distance: routeInfo.distance || 1000,
+      isOver800Km: Boolean(routeInfo.isOver800Km),
+      seasonStatus: routeInfo.seasonStatus || '正常执飞',
+      hasReturn: (DIRECT_MAP[toCity] || []).includes(fromCity),
+      tags: destMeta.tags || [],
+      region: destMeta.region || '',
+      airport: destMeta.airport || '',
+      tax: tax.totalTax
+    });
+  });
+
+  // 如果未开“仅看有票”，把其他直飞常规拓扑也追加进来
+  ROUTES_NETWORK.forEach(r => {
+    const pairKey = `${r.from}-${r.to}`;
+    if (!seenPair.has(pairKey)) {
+      seenPair.add(pairKey);
+      const destMeta = CITY_METADATA[r.to] || {};
+      const tax = calculateTaxes(r.distance || 1000);
+      allRoutesList.push({
+        from: r.from,
+        to: r.to,
+        distance: r.distance || 1000,
+        isOver800Km: Boolean(r.isOver800Km),
+        seasonStatus: r.seasonStatus || '正常执飞',
+        hasReturn: (DIRECT_MAP[r.to] || []).includes(r.from),
         tags: destMeta.tags || [],
         region: destMeta.region || '',
         airport: destMeta.airport || '',
         tax: tax.totalTax
       });
-    });
+    }
   });
-  renderRouteCards(container, hotList, null);
+
+  let filtered = allRoutesList;
+  if (currentRegion !== '全部') {
+    filtered = filtered.filter(item => item.region === currentRegion);
+  }
+
+  setSummaryText(`全网直飞航线`);
+  renderRouteCards(container, filtered, null);
 }
 
 /**
  * 统一渲染航线列表（现代数据列表 / 表格视图，直观展示哪天有票与可兑天数）
  */
 function renderRouteCards(container, list, fixedOrigin) {
+  const toggleEl = document.getElementById('toggleOnlyAvailable');
+  const toggleTextEl = document.getElementById('toggleOnlyAvailableText');
+  const toggleLabel = toggleEl ? toggleEl.closest('.toggle-only-available') : null;
+  const onlyAvailable = toggleEl?.checked ?? true;
+
+  // 1. 统计当前出发地/目的地候选集全部航线中，有票数量与总数量
+  const totalCount = list ? list.length : 0;
+  const availableItems = (list || []).filter(item => {
+    const fCity = fixedOrigin || item.from;
+    const tCity = item.to;
+    const avail = AVAILABLE_ROUTES_MAP[`${fCity}-${tCity}`];
+    return Boolean(avail && avail.availableDaysCount > 0);
+  });
+  const availableCount = availableItems.length;
+
+  // 2. 动态更新顶部开关文字与高亮样式 (用户核心需求：开启时为"查看有票航线42条"，关闭时为"全部航线44条")
+  if (toggleTextEl) {
+    if (onlyAvailable) {
+      toggleTextEl.textContent = `查看有票航线${availableCount}条`;
+      if (toggleLabel) toggleLabel.classList.add('active');
+    } else {
+      toggleTextEl.textContent = `全部航线${totalCount}条`;
+      if (toggleLabel) toggleLabel.classList.remove('active');
+    }
+  }
+
+  // 同步顶部排序按钮高亮状态
+  document.querySelectorAll('#routeSortBar .sort-pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-sort') === currentRouteSort);
+  });
+
   if (!list || list.length === 0) {
     container.innerHTML = `
       <div class="route-list-empty">
         <p style="font-size: 1.05rem; font-weight:700; color:var(--text-primary); margin-bottom: 6px;">该筛选条件下暂无直飞航线</p>
-        <p style="font-size: 0.86rem; color:var(--text-muted); max-width:460px; margin:0 auto 16px;">建议切换区域或点击【接驳规划】查看周边高铁 1~2 小时大基地辐射方案！</p>
+        <p style="font-size: 0.86rem; color:var(--text-muted); max-width:460px; margin:0 auto 16px;">建议切换城市或点击【接驳规划】查看周边高铁 1~2 小时大基地辐射方案！</p>
         <button class="btn-primary" onclick="document.querySelector('[data-tab=\\'tab-transfer\\']').click()">前往跨城接驳规划器</button>
       </div>
     `;
     return;
   }
 
-  const onlyAvailable = document.getElementById('toggleOnlyAvailable')?.checked ?? true;
-
-  // 1. 过滤：若开启“仅看有票航线”，只保留放票大盘中可兑天数 > 0 的航线
-  let filteredList = [...list];
-  if (onlyAvailable) {
-    filteredList = filteredList.filter(item => {
-      const fCity = fixedOrigin || item.from;
-      const tCity = item.to;
-      const avail = AVAILABLE_ROUTES_MAP[`${fCity}-${tCity}`];
-      return Boolean(avail && avail.availableDaysCount > 0);
-    });
-  }
+  // 3. 过滤出本次要展示的航线列表
+  let filteredList = onlyAvailable ? [...availableItems] : [...list];
 
   if (filteredList.length === 0 && list.length > 0) {
     container.innerHTML = `
       <div class="route-list-empty">
         <p style="font-size: 1.05rem; font-weight:700; color:var(--text-primary); margin-bottom: 6px;">该城市当前暂无官方放票航线（或已被抢完）</p>
-        <p style="font-size: 0.86rem; color:var(--text-muted); max-width:460px; margin:0 auto 16px;">您可以关闭上方的【仅看有票航线】开关查看所有常态直飞班次，或选择杭州/哈尔滨等大盘放票大户！</p>
-        <button class="btn-primary" onclick="document.getElementById('toggleOnlyAvailable').checked=false; renderDirectRoutes();">查看全部常规排班</button>
+        <p style="font-size: 0.86rem; color:var(--text-muted); max-width:460px; margin:0 auto 16px;">您可以关闭上方的【查看有票航线】开关查看所有常态直飞班次，或选择杭州/哈尔滨等大盘放票大户！</p>
+        <button class="btn-primary" onclick="document.getElementById('toggleOnlyAvailable').checked=false; renderDirectRoutes();">查看全部常规航线 (${totalCount}条)</button>
       </div>
     `;
     return;
   }
 
-  // 2. 排序处理：默认按可兑换天数由多到少从上到下排列 (放票最多排最前)
+  // 2. 排序处理
   let sortedList = [...filteredList];
   if (currentRouteSort === 'tickets-desc' || currentRouteSort === 'default') {
     sortedList.sort((a, b) => {
@@ -1206,6 +1561,20 @@ function renderRouteCards(container, list, fixedOrigin) {
       const cntB = AVAILABLE_ROUTES_MAP[`${fB}-${b.to}`]?.availableDaysCount || 0;
       if (cntB !== cntA) return cntB - cntA;
       return (b.distance || 0) - (a.distance || 0);
+    });
+  } else if (currentRouteSort === 'recent-first') {
+    // 用户核心需求：最近可兑排序，最近有票的航线排在最前
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    sortedList.sort((a, b) => {
+      const fA = fixedOrigin || a.from;
+      const fB = fixedOrigin || b.from;
+      const datesA = AVAILABLE_ROUTES_MAP[`${fA}-${a.to}`]?.availableDates || [];
+      const datesB = AVAILABLE_ROUTES_MAP[`${fB}-${b.to}`]?.availableDates || [];
+      const firstA = datesA.find(d => d >= todayStr) || '9999-99-99';
+      const firstB = datesB.find(d => d >= todayStr) || '9999-99-99';
+      if (firstA !== firstB) return firstA.localeCompare(firstB);
+      return datesB.length - datesA.length;
     });
   } else if (currentRouteSort === 'time-asc') {
     sortedList.sort((a, b) => {
@@ -1255,16 +1624,18 @@ function renderRouteCards(container, list, fixedOrigin) {
 
     // 获取真实冬春航季排班信息
     const flightList = ROUTE_FLIGHTS_MAP[`${fromCity}-${toCity}`] || [];
-    const f0 = flightList[0];
     let flightScheduleHtml = '';
-    if (f0 && f0.flightNo) {
+
+    if (flightList.length === 1) {
+      // 模式 1: 单班航线 (只有1班) -> 正常精准展示该航班起降时刻与频次
+      const f0 = flightList[0];
+      const stopoverTag = f0.stopover === '直飞' ? '首选单班' : (f0.stopover || '首选单班');
       flightScheduleHtml = `
         <div class="rc-flight-block">
           <div class="rc-flight-badges">
-            <span class="${f0.stopover === '直飞' ? 'badge-stopover-direct' : 'badge-stopover-via'}" style="font-size:0.72rem; padding:2px 7px; border-radius:4px;">${f0.stopover || '直飞'}</span>
+            <span class="badge-stopover-direct" style="font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:700;">${stopoverTag}</span>
             <span style="font-weight:800; font-size:0.95rem; color:var(--text-primary); font-variant-numeric:tabular-nums;">${f0.flightNo}</span>
-            <span style="font-size:0.75rem; color:var(--text-secondary); background:#f1f5f9; padding:2px 6px; border-radius:4px;">${f0.aircraft || 'A320'}</span>
-            ${flightList.length > 1 ? `<span style="font-size:0.7rem; background:#ecfeff; color:#0e7490; padding:2px 6px; border-radius:4px; font-weight:700;">共${flightList.length}班</span>` : ''}
+            <span style="font-size:0.74rem; color:var(--text-secondary); background:#f1f5f9; padding:2px 6px; border-radius:4px;">${f0.aircraft || 'A320'}</span>
           </div>
           <div class="rc-schedule-time">
             <span>${f0.depTime}</span>
@@ -1273,8 +1644,42 @@ function renderRouteCards(container, list, fixedOrigin) {
             <span style="font-size:0.76rem; font-weight:500; color:var(--text-muted);">(${f0.duration})</span>
           </div>
           <div class="rc-flight-meta">
-            <span>${formatFrequency(f0.frequency)}</span>
-            ${flightList.length > 1 ? `<span style="color:var(--text-muted); font-size:0.72rem;">(另有 ${flightList.slice(1).map(f => f.depTime).join(', ')})</span>` : ''}
+            <span class="rc-freq-chip-txt">${formatFrequency(f0.frequency)}</span>
+          </div>
+        </div>
+      `;
+    } else if (flightList.length > 1) {
+      // 模式 2: 多班航线 (2班及以上，如杭州-哈尔滨共7班，杭州-成都共6班) -> 提炼全天服务跨度与频次
+      const sortedFlights = [...flightList].sort((a, b) => (a.depTime || '').localeCompare(b.depTime || ''));
+      const firstFlight = sortedFlights[0];
+      const lastFlight = sortedFlights[sortedFlights.length - 1];
+      const hasDirect = flightList.some(f => f.stopover === '直飞');
+      const hasVia = flightList.some(f => f.stopover !== '直飞');
+      const stopoverBadge = hasDirect && hasVia ? '含直飞/经停' : (hasDirect ? '直飞' : '经停');
+
+      // 合并计算全周执飞频次
+      const allDays = new Set();
+      flightList.forEach(f => {
+        (f.frequency || '').split('').forEach(d => allDays.add(d));
+      });
+      const combinedFreq = allDays.size >= 7 ? '天天执飞' : `周${Array.from(allDays).sort().map(d => ({'1':'一','2':'二','3':'三','4':'四','5':'五','6':'六','7':'日'})[d] || d).join('')}`;
+
+      flightScheduleHtml = `
+        <div class="rc-flight-block">
+          <div class="rc-flight-badges">
+            <span class="badge-stopover-direct" style="background:#ecfeff; color:#0e7490; border-color:#a5f3fc; font-size:0.75rem; font-weight:800; padding:2px 8px; border-radius:4px;">全天共 ${flightList.length} 班</span>
+            <span style="font-size:0.74rem; color:var(--text-secondary); background:#f1f5f9; padding:2px 6px; border-radius:4px;">${stopoverBadge}</span>
+          </div>
+          <div class="rc-schedule-time" title="首班起飞: ${firstFlight.depTime}，末班起飞: ${lastFlight.depTime}">
+            <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">首班</span>
+            <span>${firstFlight.depTime}</span>
+            <span style="color:var(--text-muted); font-size:0.85rem; margin:0 3px;">~</span>
+            <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">末班</span>
+            <span>${lastFlight.depTime}</span>
+          </div>
+          <div class="rc-flight-meta">
+            <span class="rc-freq-chip-txt">${combinedFreq}</span>
+            <span style="font-size:0.74rem; color:var(--accent-cyan); font-weight:600;">(点日期查各班余票)</span>
           </div>
         </div>
       `;
@@ -1287,27 +1692,31 @@ function renderRouteCards(container, list, fixedOrigin) {
       `;
     }
 
-    // 具体可兑换出行日胶囊标签流
+    // 具体可兑换出行日胶囊标签流 (同行紧凑展示，悬停明确详细年月日)
     let datesFlowHtml = '';
     if (hasTickets && availDates.length > 0) {
-      const INITIAL_SHOW = 10;
+      const INITIAL_SHOW = 12;
       const firstSlice = availDates.slice(0, INITIAL_SHOW);
       const remainingSlice = availDates.slice(INITIAL_SHOW);
 
       const renderChip = (d) => {
         const dt = new Date(d);
+        const year = dt.getFullYear();
+        const month = dt.getMonth() + 1;
+        const dayNum = dt.getDate();
         const dayOfWeek = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][dt.getDay()];
         const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
         const shortDate = d.slice(5); // "10-25"
+        const fullDateCn = `${year}年${month}月${dayNum}日 (${dayOfWeek})`;
         const cacheKey = `${fromCity}-${toCity}-${d}`;
         const cached = window.LIVE_QUERY_CACHE?.[cacheKey];
         let badgeHtml = '';
         let isChecked = false;
-        let titleAttr = `点击查询 ${d} (${dayOfWeek}) 官方航班实时余票`;
+        let titleAttr = `【${fullDateCn}】点击实时查验官方余票`;
         if (cached) {
           isChecked = true;
           const timeLabel = formatCheckTime(cached.timestamp, cached.timeFormatted);
-          titleAttr = `查询时间：${cached.timeFormatted} · 畅飞卡余 ${cached.count} 张 (点击可重新查验)`;
+          titleAttr = `【${fullDateCn}】\n查验时间：${cached.timeFormatted}\n余票状态：畅飞卡余 ${cached.count} 张 (点击可看各班详情)`;
           badgeHtml = cached.count > 0 
             ? `<span class="pill-check-tag pill-tag-success">余${cached.count} · ${timeLabel}</span>`
             : `<span class="pill-check-tag pill-tag-empty">兑完 · ${timeLabel}</span>`;
@@ -1315,16 +1724,15 @@ function renderRouteCards(container, list, fixedOrigin) {
         return `<span class="date-pill ${isWeekend ? 'date-pill-weekend' : ''} ${isChecked ? 'is-checked' : ''}" 
                       data-check-key="${cacheKey}" 
                       data-base-text="${shortDate} ${dayOfWeek}" 
-                      onclick="window.checkLiveSeatCount('${fromCity}', '${toCity}', '${d}')" 
-                      title="${titleAttr}"><span class="pill-date-txt">${shortDate} ${dayOfWeek}</span>${badgeHtml}</span>`;
+                      onclick="window.checkLiveSeatCount('${fromCity}', '${toCity}', '${d}', this)" 
+                      title="${titleAttr}"><span class="pill-date-txt">${shortDate} <strong class="pill-day-strong">${dayOfWeek}</strong></span>${badgeHtml}</span>`;
       };
 
       datesFlowHtml = `
         <div class="rc-dates-deck">
-          <div class="rc-dates-header">
-            <div class="rc-dates-title">
-              <span class="rc-dates-badge">可兑换 ${availDaysCount} 天</span>
-            </div>
+          <div style="display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
+            <span class="rc-dates-badge">可兑换 ${availDaysCount} 天</span>
+            <button class="btn-refresh-cal" onclick="window.refreshRouteCalendar('${fromCity}', '${toCity}', this)" title="实时联网向长龙官方刷新本航线未来60天放票日历（单次仅查本航线，0.3秒极速且零风控）"><span>🔄</span> 刷新放票</button>
           </div>
           <div class="rc-dates-grid">
             ${firstSlice.map(renderChip).join('')}
@@ -1340,8 +1748,11 @@ function renderRouteCards(container, list, fixedOrigin) {
     } else {
       datesFlowHtml = `
         <div class="rc-dates-deck" style="background:#f8fafc; border-color:#e2e8f0;">
-          <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-            <span>暂无可兑换配额</span>
+          <div style="font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; width:100%;">
+            <div style="display:inline-flex; align-items:center; gap:8px;">
+              <span>暂无可兑换配额</span>
+              <button class="btn-refresh-cal" onclick="window.refreshRouteCalendar('${fromCity}', '${toCity}', this)" title="实时联网探测长龙官方是否新补放了该航线机位"><span>🔄</span> 探测放票</button>
+            </div>
             <button class="btn-glass" style="padding:4px 10px; font-size:0.75rem;" onclick="window.openMapDrawer('${fromCity}-${toCity}')">接驳方案</button>
           </div>
         </div>
@@ -1369,20 +1780,11 @@ function renderRouteCards(container, list, fixedOrigin) {
           <!-- 真实执飞航班与计划时刻 -->
           ${flightScheduleHtml}
 
-          <!-- 右侧核心数据与操作区 -->
+          <!-- 右侧核心数据与操作区 (已移除基建燃油及西北西南等区域标签) -->
           <div class="rc-stats-action-block">
             <div class="rc-stat-item">
               <div class="rc-stat-val">${item.distance ? item.distance.toLocaleString() : '--'} <span style="font-size:0.75rem; font-weight:500;">km</span></div>
               <div class="rc-stat-label">${distTag || (item.distance < 800 ? '短途航线' : '常规航线')}</div>
-            </div>
-
-            <div class="rc-stat-item">
-              <div class="rc-stat-val" style="color:var(--accent-cyan);">¥${item.tax || 140}</div>
-              <div class="rc-stat-label">${item.distance < 800 ? '机建¥50' : '机建¥50+燃油¥90'}</div>
-            </div>
-
-            <div class="rc-stat-item">
-              <span class="region-pill" style="font-size:0.76rem; padding:4px 10px;">${item.region || destMeta.region || '国内'}</span>
             </div>
 
             <div class="rc-stat-item" style="flex-direction:row; gap:8px; align-items:center;">
@@ -1396,7 +1798,7 @@ function renderRouteCards(container, list, fixedOrigin) {
           </div>
         </div>
 
-        <!-- 卡片下半部：近60天可兑换出行日专区 -->
+        <!-- 卡片下半部：近60天可兑换出行日专区 (可兑几天与日期同行紧凑展现) -->
         ${datesFlowHtml}
       </div>
     `;
@@ -1404,23 +1806,7 @@ function renderRouteCards(container, list, fixedOrigin) {
 
   container.innerHTML = `
     <div class="route-cards-list-stream">
-      <!-- 列表操作栏 -->
-      <div class="route-list-toolbar" style="margin-bottom:16px;">
-        <div class="route-list-summary-info">
-          <span class="route-count-badge">共 ${sortedList.length} 条直飞航线</span>
-        </div>
-        <div class="route-list-sort-bar">
-          <span class="sort-label">排序:</span>
-          <div class="sort-btn-group">
-            <button class="sort-pill-btn ${currentRouteSort === 'tickets-desc' || currentRouteSort === 'default' ? 'active' : ''}" onclick="window.setRouteSort('tickets-desc')">可兑天数最多 ↓</button>
-            <button class="sort-pill-btn ${currentRouteSort === 'time-asc' ? 'active' : ''}" onclick="window.setRouteSort('time-asc')">起飞时间 (早到晚)</button>
-            <button class="sort-pill-btn ${currentRouteSort === 'dist-desc' ? 'active' : ''}" onclick="window.setRouteSort('dist-desc')">航距最长 ↓</button>
-            <button class="sort-pill-btn ${currentRouteSort === 'name-asc' ? 'active' : ''}" onclick="window.setRouteSort('name-asc')">目的地首字母</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 现代宽幅高级卡片流 -->
+      <!-- 现代宽幅高级卡片流 (已移除原冗余工具栏，排序与航线统计已整合至顶部筛选条) -->
       <div style="display:flex; flex-direction:column; gap:16px;">
         ${rowsHtml}
       </div>
@@ -1916,8 +2302,8 @@ window.openMapDrawer = function(routeKey) {
             <span class="drawer-stat-lbl">飞行 ${f0.duration}</span>
           </div>
           <div class="drawer-stat-box">
-            <span class="drawer-stat-val" style="color:var(--accent-cyan);">¥${tax.totalTax}</span>
-            <span class="drawer-stat-lbl">机建¥${tax.airportBuildFee || tax.buildFee || 50} + 燃油¥${tax.fuelFee}</span>
+            <span class="drawer-stat-val">${routeMeta.distance || '--'} km</span>
+            <span class="drawer-stat-lbl">航线总里程</span>
           </div>
         </div>
       </div>
@@ -2557,69 +2943,272 @@ window.toggleMoreDates = function(idx, btn) {
 };
 
 /**
- * 即时向官方查验指定航线与具体日期的各航班真实剩余张数 (secCardLeft)
+ * 全局微气泡状态与单例管理
  */
-window.checkLiveSeatCount = async function(fromCity, toCity, flightDate) {
-  const eventTarget = window.event?.currentTarget;
-  const originalHtml = eventTarget ? eventTarget.innerHTML : '';
-  if (eventTarget) {
-    eventTarget.style.opacity = '0.7';
-    eventTarget.innerHTML = `查票中...`;
+window.__ACTIVE_POPOVER__ = null;
+window.__ACTIVE_POPOVER_KEY__ = null;
+window.__ACTIVE_POPOVER_TARGET__ = null;
+
+/**
+ * 关闭席位微气泡
+ */
+window.closeSeatPopover = function() {
+  const popover = document.getElementById('seatPopover');
+  if (popover) {
+    popover.style.display = 'none';
+  }
+  if (window.__ACTIVE_POPOVER_TARGET__) {
+    window.__ACTIVE_POPOVER_TARGET__.classList.remove('is-active-popover');
+  }
+  window.__ACTIVE_POPOVER_KEY__ = null;
+  window.__ACTIVE_POPOVER_TARGET__ = null;
+};
+
+/**
+ * 就地微气泡 (Seat Popover) 核心渲染与定位
+ */
+function showSeatPopover(targetEl, fromCity, toCity, flightDate, data = {}) {
+  let popover = document.getElementById('seatPopover');
+  if (!popover) {
+    popover = document.createElement('div');
+    popover.id = 'seatPopover';
+    popover.className = 'seat-popover';
+    popover.innerHTML = `
+      <div class="seat-popover-arrow" id="seatPopoverArrow"></div>
+      <div class="seat-popover-header">
+        <div class="seat-popover-title" id="seatPopoverTitle"></div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button type="button" class="seat-popover-btn-refresh" id="seatPopoverRefreshBtn" title="重新联网查验长龙官方最新票况">🔄 刷新</button>
+          <button type="button" class="seat-popover-close" onclick="window.closeSeatPopover()">&times;</button>
+        </div>
+      </div>
+      <div class="seat-popover-body" id="seatPopoverBody"></div>
+    `;
+    document.body.appendChild(popover);
   }
 
-  showToast(`正在向长龙官方查询【${fromCity} ➔ ${toCity} (${flightDate})】各班次实时余票...`);
-  try {
-    const res = await queryLiveFlights(fromCity, toCity, flightDate);
-    if (res.ok && res.flights && res.flights.length > 0) {
-      let totalSecCardLeft = 0;
-      const flightDetails = res.flights.map(f => {
-        const leftCount = Number(f.secCardLeft) || 0;
-        totalSecCardLeft += leftCount;
-        const leftBadge = leftCount > 0 
-          ? `<span style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 10px; border-radius:12px; font-weight:800; font-size:0.82rem;">畅飞卡余票: ${leftCount} 张</span>`
-          : `<span style="background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0; padding:2px 8px; border-radius:12px; font-weight:600; font-size:0.8rem;">已兑完</span>`;
-        return `
-          <div style="background:#f8fafc; border:1px solid var(--border-subtle); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-              <strong style="font-size:1.15rem; color:var(--accent-cyan); font-weight:800;">${f.flightNo}</strong>
-              ${leftBadge}
+  const dt = new Date(flightDate);
+  const month = dt.getMonth() + 1;
+  const day = dt.getDate();
+  const dayOfWeek = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][dt.getDay()];
+  const dateStr = `${month}月${day}日 ${dayOfWeek}`;
+
+  // 1. 设置头部
+  const titleEl = document.getElementById('seatPopoverTitle');
+  if (titleEl) {
+    titleEl.innerHTML = `<strong>${fromCity} ➔ ${toCity}</strong> <span class="seat-popover-date">${dateStr}</span>`;
+  }
+
+  // 刷新按钮绑定
+  const refreshBtn = document.getElementById('seatPopoverRefreshBtn');
+  if (refreshBtn) {
+    refreshBtn.onclick = (e) => {
+      e.stopPropagation();
+      window.checkLiveSeatCount(fromCity, toCity, flightDate, targetEl, true);
+    };
+  }
+
+  // 2. 渲染主体内容
+  const bodyEl = document.getElementById('seatPopoverBody');
+  if (data.loading) {
+    bodyEl.innerHTML = `
+      <div class="seat-popover-loading">
+        <div class="popover-spinner"></div>
+        <div style="line-height:1.4;">
+          <div style="font-weight:700; color:var(--text-primary); font-size:0.88rem;">正在连接长龙官方系统...</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">实时探测当日各航班畅飞卡剩余机位</div>
+        </div>
+      </div>
+    `;
+  } else if (data.flights && data.flights.length > 0) {
+    let totalSecCardLeft = 0;
+    const flightItems = data.flights.map(f => {
+      const leftCount = Number(f.secCardLeft) || 0;
+      totalSecCardLeft += leftCount;
+      const leftBadge = leftCount > 0 
+        ? `<span class="seat-badge seat-badge-avail">畅飞卡余 ${leftCount} 张</span>`
+        : `<span class="seat-badge seat-badge-empty">已兑完</span>`;
+      return `
+        <div class="seat-flight-item">
+          <div class="seat-flight-row1">
+            <div class="seat-flight-left-info">
+              <span class="seat-flight-no">${f.flightNo}</span>
+              <span class="seat-flight-plane">${f.aircraft || 'A320'}</span>
+              <span class="${f.stopover === '直飞' ? 'seat-flight-direct' : 'seat-flight-via'}">${f.stopover || '直飞'}</span>
             </div>
-            <div style="font-size:0.9rem; color:var(--text-primary); margin-bottom:6px; font-weight:600;">
-              计划起降: <strong style="color:var(--text-primary); font-size:1.02rem;">${f.depTime}</strong> ➔ <strong style="color:var(--text-primary); font-size:1.02rem;">${f.arrTime}</strong> · 机型: ${f.aircraft || 'A320'}
+            ${leftBadge}
+          </div>
+          <div class="seat-flight-row2">
+            <div class="seat-flight-times">
+              <span>${f.depTime}</span>
+              <span style="color:var(--text-muted); font-size:0.8rem;">➔</span>
+              <span>${f.arrTime}</span>
+              <span style="font-size:0.74rem; font-weight:normal; color:var(--text-muted);">(${f.duration || '--'})</span>
             </div>
-            <div style="font-size:0.8rem; color:var(--text-secondary); display:flex; justify-content:space-between; padding-top:6px; border-top:1px dashed #e2e8f0;">
-              <span>阶梯基础承运价: <strong style="color:var(--accent-rose); font-size:0.95rem;">¥${f.redeemPrice}</strong></span>
-              <span>普通全价舱位剩余: ${f.normalLeft ?? '--'} 张</span>
+            <div class="seat-flight-price">
+              基础承运价: <strong>¥${f.redeemPrice}</strong>
             </div>
           </div>
-        `;
-      }).join('');
+        </div>
+      `;
+    }).join('');
 
-      // 记录查询时间戳（几月几日 几点几分）
-      const now = new Date();
-      const month = now.getMonth() + 1;
-      const day = now.getDate();
-      const hour = String(now.getHours()).padStart(2, '0');
-      const min = String(now.getMinutes()).padStart(2, '0');
-      const timeFormatted = `${month}月${day}日 ${hour}:${min}`;
+    bodyEl.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:2px 2px 6px 2px; font-size:0.78rem; color:var(--text-secondary); border-bottom:1px dashed var(--border-subtle); margin-bottom:4px;">
+        <span>官方排班: <strong>${data.flights.length}</strong> 班直飞</span>
+        <span style="color:${totalSecCardLeft > 0 ? '#047857' : '#94a3b8'}; font-weight:700;">畅飞卡累计余 <strong>${totalSecCardLeft}</strong> 张</span>
+      </div>
+      ${flightItems}
+      <div class="seat-popover-footer" style="margin-top:4px; padding:6px 0 0 0; border-top:1px solid #f1f5f9;">
+        <span>${data.fromCache ? '⚡ 已展现存录票况 (无需重复查验)' : '✨ 长龙官方实时查验'}</span>
+        <span style="color:var(--text-muted);">${data.timeFormatted || ''}</span>
+      </div>
+    `;
+  } else if (data.empty) {
+    bodyEl.innerHTML = `
+      <div class="seat-popover-empty">
+        <div class="empty-icon">🎟️</div>
+        <div class="empty-title">官方大盘显示有票 · 暂无可兑机位</div>
+        <div class="empty-desc">该日免费机位可能已被抢兑完，或当日航班正在微调。建议关注临近日期或明日早间补放！</div>
+      </div>
+      <div class="seat-popover-footer" style="padding:4px 0 0 0;">
+        <span>已记录当前状态</span>
+        <span style="color:var(--text-muted);">${data.timeFormatted || ''}</span>
+      </div>
+    `;
+  } else if (data.error) {
+    bodyEl.innerHTML = `
+      <div class="seat-popover-empty">
+        <div class="empty-icon">⏳</div>
+        <div class="empty-title">官方接口响应中</div>
+        <div class="empty-desc">大盘已确认 ${flightDate} 为长龙有效兑换日。官方实时接口瞬时正忙，请稍候重试或直接打开长龙 App 查看！</div>
+      </div>
+    `;
+  }
 
-      const cacheKey = `${fromCity}-${toCity}-${flightDate}`;
-      const timestamp = now.getTime();
+  // 3. 计算就地微气泡定位坐标
+  popover.style.display = 'flex';
+  popover.style.visibility = 'hidden'; // 先隐藏以获取当前真实 offsetHeight
+  
+  const arrowEl = document.getElementById('seatPopoverArrow');
+  if (targetEl) {
+    if (window.__ACTIVE_POPOVER_TARGET__) {
+      window.__ACTIVE_POPOVER_TARGET__.classList.remove('is-active-popover');
+    }
+    targetEl.classList.add('is-active-popover');
+    window.__ACTIVE_POPOVER_TARGET__ = targetEl;
+
+    const rect = targetEl.getBoundingClientRect();
+    const scrollX = window.scrollX || window.pageXOffset;
+    const scrollY = window.scrollY || window.pageYOffset;
+
+    const popoverWidth = popover.offsetWidth || 380;
+    const popoverHeight = popover.offsetHeight || 260;
+
+    // 水平居中对齐胶囊
+    let left = rect.left + scrollX + (rect.width / 2) - (popoverWidth / 2);
+    left = Math.max(10, Math.min(left, window.innerWidth - popoverWidth - 10));
+
+    // 计算箭头相对于 popover 的水平偏移
+    const targetCenterScreenX = rect.left + (rect.width / 2);
+    const arrowLeft = Math.max(16, Math.min(targetCenterScreenX - left, popoverWidth - 24));
+    if (arrowEl) {
+      arrowEl.style.left = `${arrowLeft}px`;
+    }
+
+    // 垂直方向：优先放置于胶囊正上方
+    let top = 0;
+    const spaceAbove = rect.top;
+    if (spaceAbove >= popoverHeight + 14) {
+      // 放在上方
+      top = rect.top + scrollY - popoverHeight - 9;
+      if (arrowEl) {
+        arrowEl.className = 'seat-popover-arrow arrow-down';
+      }
+    } else {
+      // 放在下方
+      top = rect.bottom + scrollY + 9;
+      if (arrowEl) {
+        arrowEl.className = 'seat-popover-arrow arrow-up';
+      }
+    }
+
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+  }
+
+  popover.style.visibility = 'visible';
+  window.__ACTIVE_POPOVER__ = popover;
+  window.__ACTIVE_POPOVER_KEY__ = `${fromCity}-${toCity}-${flightDate}`;
+}
+
+/**
+ * 即时向官方查验指定航线与具体日期的各航班真实剩余张数 (secCardLeft)
+ * 智能特性：查验结果完全持久化保存在后端 SQLite 数据库中，再点直接从数据库秒级回显，零网络请求！
+ */
+window.checkLiveSeatCount = async function(fromCity, toCity, flightDate, triggerEl, forceRefresh = false) {
+  const eventTarget = triggerEl || window.event?.currentTarget;
+  const cacheKey = `${fromCity}-${toCity}-${flightDate}`;
+
+  // 如果用户点击的是同一个已经展开的 Popover 胶囊，且非强制刷新，则切换关闭 (Toggle)
+  if (!forceRefresh && window.__ACTIVE_POPOVER_KEY__ === cacheKey && document.getElementById('seatPopover')?.style.display !== 'none') {
+    window.closeSeatPopover();
+    return;
+  }
+
+  // 1. 检查已从数据库拉取的内存缓存：如果已有该日期的航班列表且非强制刷新，直接 0ms 瞬间就地展示微气泡！
+  const cached = window.LIVE_QUERY_CACHE?.[cacheKey];
+  if (!forceRefresh && cached && cached.flights && cached.flights.length > 0) {
+    showSeatPopover(eventTarget, fromCity, toCity, flightDate, {
+      flights: cached.flights,
+      totalLeft: cached.count,
+      timeFormatted: cached.timeFormatted || cached.timeLabel,
+      fromDb: true
+    });
+    return;
+  }
+
+  // 2. 首次查验或用户点击【🔄 刷新】强制重新联网探测
+  if (eventTarget) {
+    eventTarget.style.opacity = '0.75';
+  }
+
+  // 立即就地弹出微气泡加载中
+  showSeatPopover(eventTarget, fromCity, toCity, flightDate, { loading: true });
+
+  try {
+    const res = await queryLiveFlights(fromCity, toCity, flightDate, forceRefresh);
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const hour = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const timeFormatted = `${month}月${day}日 ${hour}:${min}`;
+    const timestamp = now.getTime();
+    const timeLabel = `${hour}:${min}查`;
+
+    if (res.ok && res.flights && res.flights.length > 0) {
+      let totalSecCardLeft = 0;
+      res.flights.forEach(f => {
+        totalSecCardLeft += (Number(f.secCardLeft) || 0);
+      });
+
+      // 写入内存索引（后端已在数据库中持久化落库）
       window.LIVE_QUERY_CACHE = window.LIVE_QUERY_CACHE || {};
       window.LIVE_QUERY_CACHE[cacheKey] = {
         count: totalSecCardLeft,
         timeFormatted: timeFormatted,
-        timestamp: timestamp
+        timeLabel: timeLabel,
+        timestamp: timestamp,
+        flights: res.flights
       };
-      setSeatQueryCache(window.LIVE_QUERY_CACHE);
 
-      const timeLabel = `${hour}:${min}查`;
+      // 联动更新页面上所有显示该日期的胶囊按钮
       const badgeHtml = totalSecCardLeft > 0 
         ? `<span class="pill-check-tag pill-tag-success">余${totalSecCardLeft} · ${timeLabel}</span>`
         : `<span class="pill-check-tag pill-tag-empty">兑完 · ${timeLabel}</span>`;
-      const newTitle = `查询时间：${timeFormatted} · 畅飞卡余 ${totalSecCardLeft} 张 (点击可重新查验)`;
+      const newTitle = `查询时间：${timeFormatted} · 畅飞卡余 ${totalSecCardLeft} 张 (已存入数据库)`;
 
-      // 联动更新页面上所有显示该日期的胶囊按钮（列表卡片与地图抽屉完美实时双向同步）
       const matchingPills = document.querySelectorAll(`[data-check-key="${cacheKey}"]`);
       if (matchingPills && matchingPills.length > 0) {
         matchingPills.forEach(pill => {
@@ -2645,65 +3234,100 @@ window.checkLiveSeatCount = async function(fromCity, toCity, flightDate) {
         summaryEl.textContent = `最新查验 · ${timeLabel}`;
       }
 
-      showSeatDetailModal(fromCity, toCity, flightDate, `
-        <div style="margin-bottom:12px; font-size:0.85rem; color:var(--text-secondary); display:flex; justify-content:space-between; align-items:center;">
-          <span>官方实时席位：共 <strong>${res.flights.length}</strong> 班直飞，畅飞卡累计余 <strong>${totalSecCardLeft}</strong> 张</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);">查询时间: ${timeFormatted}</span>
-        </div>
-        ${flightDetails}
-      `);
+      // 就地微气泡更新展示各班次真实余票
+      showSeatPopover(eventTarget, fromCity, toCity, flightDate, {
+        flights: res.flights,
+        totalLeft: totalSecCardLeft,
+        timeFormatted: res.queryTime || timeFormatted,
+        fromDb: Boolean(res.fromDb)
+      });
     } else {
       if (eventTarget) {
         eventTarget.style.opacity = '1';
-        eventTarget.innerHTML = originalHtml;
       }
-      showSeatDetailModal(fromCity, toCity, flightDate, `
-        <div style="text-align:center; padding:28px 16px; color:var(--text-secondary);">
-          <p style="font-weight:700; color:var(--text-primary); margin-bottom:6px; font-size:1.05rem;">该日期官方大盘显示为有效放票日</p>
-          <p style="font-size:0.86rem; line-height:1.6; max-width:360px; margin:0 auto;">但当前批次免费机位可能已被抢兑完毕，或当日航班排班微调。建议留意次日放票或选择临近日期！</p>
-        </div>
-      `);
+      // 记录无票状态
+      window.LIVE_QUERY_CACHE = window.LIVE_QUERY_CACHE || {};
+      window.LIVE_QUERY_CACHE[cacheKey] = {
+        count: 0,
+        timeFormatted: timeFormatted,
+        timeLabel: timeLabel,
+        timestamp: timestamp,
+        flights: []
+      };
+
+      showSeatPopover(eventTarget, fromCity, toCity, flightDate, {
+        empty: true,
+        timeFormatted: timeFormatted
+      });
     }
   } catch (err) {
     if (eventTarget) {
       eventTarget.style.opacity = '1';
-      eventTarget.innerHTML = originalHtml;
     }
-    showSeatDetailModal(fromCity, toCity, flightDate, `
-      <div style="padding:16px; color:var(--text-secondary); line-height:1.6;">
-        <p><strong>大盘已确认 ${flightDate} 为长龙畅飞卡有效可兑换日</strong>（非节假日黑飞禁兑期）。</p>
-        <p style="margin-top:8px; font-size:0.84rem;">后台接口正在响应中，请稍候再试，或直接打开手机飞猪/长龙 App 预约出票！</p>
-      </div>
-    `);
+    showSeatPopover(eventTarget, fromCity, toCity, flightDate, {
+      error: true
+    });
   }
 };
 
-function showSeatDetailModal(from, to, date, contentHtml) {
-  let modal = document.getElementById('modalSeatDetail');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'modalSeatDetail';
-    modal.className = 'modal-overlay';
-    document.body.appendChild(modal);
+/**
+ * 用户新功能：单条航线即时联网刷新官方放票日历 (按需精准点查，0.3秒极速且零风控)
+ */
+window.refreshRouteCalendar = async function(fromCity, toCity, btnEl) {
+  if (btnEl) {
+    if (btnEl.classList.contains('is-refreshing')) return;
+    btnEl.classList.add('is-refreshing');
+    btnEl.innerHTML = `<span class="spin">⏳</span> 刷新中...`;
   }
-  modal.innerHTML = `
-    <div class="modal-content" style="max-width: 500px; padding:22px 24px;">
-      <div class="modal-header" style="margin-bottom:14px; border-bottom:1px solid var(--border-subtle); padding-bottom:10px;">
-        <h3 style="font-size:1.1rem; font-weight:800; color:var(--text-primary); margin:0;">
-          ${from} ➔ ${to} · ${date} 官方余票
-        </h3>
-        <button class="btn-close" onclick="document.getElementById('modalSeatDetail').style.display='none'">&times;</button>
-      </div>
-      <div style="max-height:65vh; overflow-y:auto; padding-right:2px;">
-        ${contentHtml}
-      </div>
-      <div style="padding-top:14px; border-top:1px solid var(--border-subtle); display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
-        <button class="btn-primary" style="padding:8px 20px;" onclick="document.getElementById('modalSeatDetail').style.display='none'">我知道了</button>
-      </div>
-    </div>
-  `;
-  modal.style.display = 'flex';
-  modal.onclick = (e) => {
-    if (e.target === modal) modal.style.display = 'none';
-  };
-}
+  showToast(`正在向长龙官方查询【${fromCity} ➔ ${toCity}】最新放票日历...`);
+  try {
+    const res = await fetch(`/api/calendar?from=${encodeURIComponent(fromCity)}&to=${encodeURIComponent(toCity)}&refresh=1`);
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      const dates = data.availableDates || [];
+      const routeKey = `${fromCity}-${toCity}`;
+      if (!AVAILABLE_ROUTES_MAP[routeKey]) {
+        AVAILABLE_ROUTES_MAP[routeKey] = {
+          from: fromCity,
+          to: toCity,
+          availableDates: dates,
+          availableDaysCount: dates.length
+        };
+      } else {
+        AVAILABLE_ROUTES_MAP[routeKey].availableDates = dates;
+        AVAILABLE_ROUTES_MAP[routeKey].availableDaysCount = dates.length;
+      }
+      showToast(`🎉【${fromCity} ➔ ${toCity}】官方放票日历已实时更新！共 ${dates.length} 天有票`);
+      renderDirectRoutes();
+    } else {
+      showToast(`⚠️ 刷新提示: ${data.error || '官方接口未返回'}`);
+      if (btnEl) {
+        btnEl.classList.remove('is-refreshing');
+        btnEl.innerHTML = `<span>🔄</span> 刷新放票`;
+      }
+    }
+  } catch (err) {
+    showToast('网络请求异常，请检查服务状态');
+    if (btnEl) {
+      btnEl.classList.remove('is-refreshing');
+      btnEl.innerHTML = `<span>🔄</span> 刷新放票`;
+    }
+  }
+};
+
+// 全局点击监听：点击微气泡外部任意处自动平滑收起
+document.addEventListener('pointerdown', (e) => {
+  const popover = document.getElementById('seatPopover');
+  if (!popover || popover.style.display === 'none') return;
+  if (popover.contains(e.target)) return;
+  if (e.target.closest && (e.target.closest('.date-pill') || e.target.closest('.seat-popover-btn-refresh'))) return;
+  window.closeSeatPopover();
+});
+
+// ESC 键收起微气泡
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    window.closeSeatPopover();
+  }
+});
+

@@ -173,24 +173,26 @@ class SecCardClient:
         res_str = payload.get("Result", "{}")
         return json.loads(res_str) if isinstance(res_str, str) else res_str
 
-    def load_routes_index(self, frm_code: str, to_code: str) -> dict:
-        """从 SQLite 数据库表 flight_routes 快速索引真实航班号 (无需读取 json 文件)"""
-        idx = {}
+    def load_routes_index(self, frm_code: str, to_code: str) -> list[dict]:
+        """从 SQLite 数据库表 flight_routes 读取真实航班班次列表"""
         fc, tc = IATA_CITY.get(frm_code, frm_code), IATA_CITY.get(to_code, to_code)
         try:
             import db
             conn = db.get_connection()
             cur = conn.cursor()
-            cur.execute("SELECT dep_time, arr_time, flight_no FROM flight_routes WHERE from_city = ? AND to_city = ?", (fc, tc))
-            for r in cur.fetchall():
-                idx[(r["dep_time"], r["arr_time"][:5])] = r["flight_no"]
+            cur.execute("""
+                SELECT flight_no, dep_time, arr_time, aircraft, stopover 
+                FROM flight_routes 
+                WHERE from_city = ? AND to_city = ?
+            """, (fc, tc))
+            rows = [dict(r) for r in cur.fetchall()]
             conn.close()
+            return rows
         except Exception:
-            pass
-        return idx
+            return []
 
     def search_flights(self, frm: str, to: str, date_str: str) -> list[dict]:
-        """查询某航线某日航班与真实余量"""
+        """查询某航线某日航班与真实余量，具备高精度智能航班号反查算法"""
         frm_code = CITY_IATA.get(frm, frm)
         to_code = CITY_IATA.get(to, to)
         p = dict(self.template)
@@ -199,19 +201,70 @@ class SecCardClient:
         p["departureTime"] = f"{date_str}T00:00:00"
         
         res = self.call_api("secCardSearchFlights", p)
-        routes_idx = self.load_routes_index(frm_code, to_code)
+        route_rows = self.load_routes_index(frm_code, to_code)
         
+        def parse_minutes(t_str):
+            try:
+                parts = t_str.split(":")
+                return int(parts[0]) * 60 + int(parts[1])
+            except Exception:
+                return 0
+
         flight_items = []
         for fi in res.get("flightInfos", []):
             dep = fi["departureTime"][11:16]
             arr = fi["arriveTime"][11:16]
-            f_no = routes_idx.get((dep, arr), f"{dep}班")
+            is_via = bool(fi.get("stopOver"))
+            aircraft_official = fi.get("aircraftType", "A320")
+            dep_min = parse_minutes(dep)
+
+            # 智能反查真实航班号 (GJxxxx)
+            f_no = None
+            matched_aircraft = aircraft_official
+            matched_stopover = "经停" if is_via else "直飞"
+
+            # 1. 第一级：起降时刻完全一致精确匹配
+            for r in route_rows:
+                if r["dep_time"] == dep and r["arr_time"][:5] == arr:
+                    f_no = r["flight_no"]
+                    matched_aircraft = r.get("aircraft") or aircraft_official
+                    matched_stopover = r.get("stopover") or matched_stopover
+                    break
+
+            # 2. 第二级：同一航线起飞时间完全一致精确匹配
+            if not f_no:
+                for r in route_rows:
+                    if r["dep_time"] == dep:
+                        f_no = r["flight_no"]
+                        matched_aircraft = r.get("aircraft") or aircraft_official
+                        matched_stopover = r.get("stopover") or matched_stopover
+                        break
+
+            # 3. 第三级：起飞时间允许 ±45 分钟微调（换季时段微调）模糊匹配
+            if not f_no:
+                best_r = None
+                min_diff = 9999
+                for r in route_rows:
+                    diff = abs(dep_min - parse_minutes(r["dep_time"]))
+                    if diff <= 45 and diff < min_diff:
+                        min_diff = diff
+                        best_r = r
+                if best_r:
+                    f_no = best_r["flight_no"]
+                    matched_aircraft = best_r.get("aircraft") or aircraft_official
+                    matched_stopover = best_r.get("stopover") or matched_stopover
+
+            # 4. 万一真有未收录的未知临时加班机，显示长龙规范代码
+            if not f_no:
+                f_no = f"GJ{dep.replace(':', '')}"
+
             for c in fi.get("cabinInfos") or []:
                 flight_items.append({
                     "flightNo": f_no,
                     "depTime": dep,
                     "arrTime": arr,
-                    "aircraft": fi.get("aircraftType", "A320"),
+                    "aircraft": matched_aircraft,
+                    "stopover": matched_stopover,
                     "redeemPrice": c.get("ticketPrice", 266),
                     "secCardLeft": c.get("secCardBaseLeftCount", 0),
                     "normalLeft": c.get("leftCount", 0),

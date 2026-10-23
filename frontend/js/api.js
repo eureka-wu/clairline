@@ -12,9 +12,23 @@ export async function getBackendStatus() {
   }
 }
 
-export async function queryLiveFlights(fromCity, toCity, dateStr) {
+export async function queryLiveFlights(fromCity, toCity, dateStr, forceRefresh = false) {
   try {
-    const res = await fetch(`${API_BASE}/api/flights?from=${encodeURIComponent(fromCity)}&to=${encodeURIComponent(toCity)}&date=${dateStr}`);
+    const url = `${API_BASE}/api/flights?from=${encodeURIComponent(fromCity)}&to=${encodeURIComponent(toCity)}&date=${dateStr}${forceRefresh ? '&refresh=1' : ''}`;
+    const res = await fetch(url);
+    return await res.json();
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function fetchSeatCacheFromDb(fromCity = '', toCity = '') {
+  try {
+    let url = `${API_BASE}/api/seat-cache`;
+    if (fromCity && toCity) {
+      url += `?from=${encodeURIComponent(fromCity)}&to=${encodeURIComponent(toCity)}`;
+    }
+    const res = await fetch(url);
     return await res.json();
   } catch (err) {
     return { ok: false, error: err.message };

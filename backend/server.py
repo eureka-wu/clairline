@@ -103,6 +103,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             raw_from = qs.get("from", [""])[0]
             raw_to = qs.get("to", [""])[0]
             date_str = qs.get("date", [""])[0] or datetime.now().strftime("%Y-%m-%d")
+            force_refresh = qs.get("refresh", ["0"])[0] in ("1", "true", "True") or qs.get("force", ["0"])[0] in ("1", "true", "True")
 
             frm = IATA_CITY.get(raw_from, raw_from)
             to = IATA_CITY.get(raw_to, raw_to)
@@ -110,10 +111,31 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not frm or not to:
                 self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
                 return
+
+            # 用户核心诉求：存储不存 localStorage 存数据库！优先从数据库读取已查验的记录
+            if not force_refresh:
+                try:
+                    saved_flights = db.get_saved_flight_details(frm, to, date_str)
+                    if saved_flights:
+                        self.send_json({
+                            "ok": True, 
+                            "from": frm, 
+                            "to": to, 
+                            "date": date_str, 
+                            "flights": saved_flights,
+                            "count": len(saved_flights),
+                            "fromDb": True,
+                            "queryTime": saved_flights[0].get("queryTime", ""),
+                            "savedToDb": True
+                        })
+                        return
+                except Exception as ex:
+                    print(f"⚠️ 读取数据库查验记录提示: {ex}")
+
             try:
                 flights = client.search_flights(frm, to, date_str)
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                # 核心功能：每次查验结果 (如 17:25查) 自动持久化落库
+                # 核心功能：每次查验结果自动持久化落库
                 try:
                     db.save_seat_query_result(frm, to, date_str, flights)
                 except Exception as ex:
@@ -126,6 +148,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     "date": date_str, 
                     "flights": flights,
                     "count": len(flights),
+                    "fromDb": False,
                     "queryTime": now_str,
                     "savedToDb": True
                 })
@@ -134,27 +157,50 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/seat-cache":
-            # 从数据库读取该航线所有已被查验过的记录 (如 17:25查)
-            frm = qs.get("from", [""])[0]
-            to = qs.get("to", [""])[0]
-            if not frm or not to:
-                self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
-                return
-            records = db.get_seat_queries_for_route(frm, to)
-            self.send_json({"ok": True, "from": frm, "to": to, "cache": records})
+            # 从数据库读取已持久化的查验记录缓存 (支持单航线或全库拉取)
+            raw_from = qs.get("from", [""])[0]
+            raw_to = qs.get("to", [""])[0]
+            frm = IATA_CITY.get(raw_from, raw_from)
+            to = IATA_CITY.get(raw_to, raw_to)
+            if frm and to:
+                records = db.get_seat_queries_for_route(frm, to)
+                self.send_json({"ok": True, "from": frm, "to": to, "cache": records})
+            else:
+                all_records = db.get_all_seat_cache()
+                self.send_json({"ok": True, "cache": all_records})
             return
 
         elif path == "/api/calendar":
             # 用户核心需求：接口返回时候 这些如 14、21号没票的彻底不用返回，只返回纯净有票出行日
             frm = qs.get("from", [""])[0]
             to = qs.get("to", [""])[0]
+            force_refresh = qs.get("refresh", ["0"])[0] in ("1", "true", "True")
             if not frm or not to:
                 self.send_json({"ok": False, "error": "缺少 from 或 to 参数"}, 400)
                 return
 
+            # 用户新需求：支持单条航线点击即刻向长龙官方刷新最新可兑日历
+            if force_refresh:
+                if not client.headers:
+                    client.load_credentials()
+                if not client.headers:
+                    self.send_json({"ok": False, "error": "未检测到有效的 cl.saz 凭证，无法向官方请求！"}, 400)
+                    return
+                try:
+                    client.check_and_reload()
+                    cal = client.get_calendar(frm, to)
+                    db.save_route_calendar(frm, to, cal)
+                except Exception as ex:
+                    err_msg = str(ex)
+                    if "100001" in err_msg or "403" in err_msg or "未登录" in err_msg:
+                        self.send_json({"ok": False, "error": "长龙微信小程序登录态已过期 (100001)，请手机微信查一次票更新 cl.saz"}, 400)
+                    else:
+                        self.send_json({"ok": False, "error": f"长龙接口请求异常: {err_msg}"}, 500)
+                    return
+
             dates = db.get_available_dates(frm, to)
             # 若库中暂无且有抓包凭据，实时拉取并增量入库
-            if not dates and client.headers:
+            if not dates and not force_refresh and client.headers:
                 try:
                     cal = client.get_calendar(frm, to)
                     db.save_route_calendar(frm, to, cal)
@@ -167,7 +213,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 "from": frm, 
                 "to": to, 
                 "availableDates": dates,  # 仅包含有票出行日，无票日已被数据库严格过滤
-                "count": len(dates)
+                "count": len(dates),
+                "refreshed": force_refresh
             })
             return
 
@@ -213,6 +260,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/patrol/config":
             configs = db.get_patrol_config()
             self.send_json({"ok": True, "config": configs})
+            return
+
+        elif path == "/api/patrol/times":
+            times = db.get_full_patrol_times()
+            self.send_json({"ok": True, "times": times})
+            return
+
+        elif path == "/api/patrol/switches":
+            switches = db.get_patrol_switches()
+            self.send_json({"ok": True, "switches": switches})
             return
 
         elif path == "/api/patrol/logs":
@@ -287,7 +344,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"ok": False, "error": "config 必须为非空键值对对象"}, 400)
             return
 
+        elif path == "/api/patrol/times":
+            times = body.get("times", [])
+            if isinstance(times, list):
+                saved = db.set_full_patrol_times(times)
+                self.send_json({"ok": True, "times": saved})
+            else:
+                self.send_json({"ok": False, "error": "times 必须是数组"}, 400)
+            return
+
+        elif path == "/api/patrol/switches":
+            hot_enabled = body.get("hot_enabled")
+            all_enabled = body.get("all_enabled")
+            switches = db.set_patrol_switches(hot_enabled=hot_enabled, all_enabled=all_enabled)
+            self.send_json({"ok": True, "switches": switches})
+            return
+
         elif path == "/api/patrol/trigger":
+            mode = body.get("mode", "hot")
+            if mode not in ["hot", "all"]:
+                mode = "hot"
             if auto_patrol.PATROL_STATE.get("running"):
                 self.send_json({"ok": False, "error": "当前已有巡检任务正在进行中，请等待完成"}, 400)
                 return
@@ -300,9 +376,25 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 }, 400)
                 return
 
+            # 启动前健康探针：同步检测微信登录态是否依然存活，过期则直接拦截报错
+            try:
+                client.check_and_reload()
+                client.get_calendar("杭州", "深圳")
+            except Exception as auth_err:
+                err_text = str(auth_err)
+                if "100001" in err_text or "403" in err_text or "未登录" in err_text:
+                    self.send_json({
+                        "ok": False,
+                        "error": "长龙微信小程序登录态已过期 (100001)！请在手机微信中重新点开长龙畅飞卡查一次票，导出新 cl.saz 覆盖即可！"
+                    }, 400)
+                    return
+                else:
+                    self.send_json({"ok": False, "error": f"长龙接口网络异常: {err_text}"}, 500)
+                    return
+
             def patrol_worker():
                 try:
-                    auto_patrol.run_patrol_cycle(client, mode="hot")
+                    auto_patrol.run_patrol_cycle(client, mode=mode)
                 except Exception as ex:
                     print(f"⚠️ 手动巡检异常: {ex}")
                     auto_patrol.PATROL_STATE["running"] = False
@@ -310,7 +402,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
             t = threading.Thread(target=patrol_worker, daemon=True)
             t.start()
-            self.send_json({"ok": True, "message": "已成功启动 Top 30 慢速拟人巡检 (耗时约2~3分钟)，请查看实时进度"})
+            msg = "已成功启动全网全量普查 (约397条)，请查看实时进度" if mode == "all" else "已成功启动 Top 30 慢速拟人巡检 (耗时约2~3分钟)，请查看实时进度"
+            self.send_json({"ok": True, "mode": mode, "message": msg})
             return
 
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)

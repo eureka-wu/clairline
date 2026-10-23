@@ -83,6 +83,7 @@ PATROL_STATE = {
     "mode": "idle",
     "total": 0,
     "completed": 0,
+    "percent": 0,
     "success": 0,
     "failed": 0,
     "current_route": "",
@@ -114,60 +115,83 @@ def scan_routes_pool(client: SecCardClient, route_list: list[tuple[str, str]], p
 
     PATROL_STATE["total"] = total
     PATROL_STATE["completed"] = 0
+    PATROL_STATE["percent"] = 0
     PATROL_STATE["success"] = 0
     PATROL_STATE["failed"] = 0
 
+    consecutive_auth_fails = 0
+    abort_event = threading.Event()
+
     def worker():
-        nonlocal success_count, fail_count
-        while not q.empty():
+        nonlocal success_count, fail_count, consecutive_auth_fails
+        while not q.empty() and not abort_event.is_set():
             try:
                 frm, to = q.get_nowait()
             except queue.Empty:
                 break
             
             with lock:
-                PATROL_STATE["current_route"] = f"{frm} ➔ {to}"
+                PATROL_STATE["current_route"] = [frm, to]
                 PATROL_STATE["status_text"] = f"正在慢速巡检: {frm} ➔ {to} ({PATROL_STATE['completed'] + 1}/{total})"
 
             rate_limiter.wait()
             t_start = time.perf_counter()
+            cal_map = None
+            last_err = None
             try:
-                cal_map = client.get_calendar(frm, to)
-                duration_ms = int((time.perf_counter() - t_start) * 1000)
-                
-                # 核心功能：数据更新实时覆盖数据库对应的数据！
-                db.save_route_calendar(frm, to, cal_map)
-                
-                # 统计有效有票出行日数量
-                avail_days = sum(1 for v in cal_map.values() if (v == 1 or v is True))
-                
-                # 巡检记录写入数据库流水表 patrol_logs
-                db.record_patrol_log(
-                    batch_id=batch_id,
-                    patrol_mode="hot" if is_hot_pool else "all",
-                    from_city=frm,
-                    to_city=to,
-                    avail_count=avail_days,
-                    status="SUCCESS",
-                    error_msg="",
-                    duration_ms=duration_ms
-                )
+                for attempt in range(2):
+                    try:
+                        cal_map = client.get_calendar(frm, to)
+                        break
+                    except Exception as e:
+                        last_err = e
+                        err_txt = str(e)
+                        if "100001" in err_txt or "403" in err_txt or "未登录" in err_txt or "失效" in err_txt:
+                            break
+                        # 遭遇偶发网络超时/波动时，拟人避让 1.2 秒后自动重试一次
+                        time.sleep(1.2)
 
-                with lock:
-                    key = f"{frm}-{to}"
-                    results[key] = {
-                        "from": frm,
-                        "to": to,
-                        "calendar": cal_map,
-                        "updatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    success_count += 1
-                    PATROL_STATE["success"] = success_count
-                    PATROL_STATE["completed"] = success_count + fail_count
-                    if success_count % 5 == 0 or success_count == total:
-                        print(f"  ⚡ [{pool_name}] 进度: {success_count}/{total} (成功:{success_count}, 失败:{fail_count}) 已实时落库")
+                if cal_map is not None:
+                    duration_ms = int((time.perf_counter() - t_start) * 1000)
+                    consecutive_auth_fails = 0
+                    
+                    # 核心功能：数据更新实时覆盖数据库对应的数据！
+                    db.save_route_calendar(frm, to, cal_map)
+                    
+                    # 统计有效有票出行日数量
+                    avail_days = sum(1 for v in cal_map.values() if (v == 1 or v is True))
+                    
+                    # 巡检记录写入数据库流水表 patrol_logs
+                    db.record_patrol_log(
+                        batch_id=batch_id,
+                        patrol_mode="hot" if is_hot_pool else "all",
+                        from_city=frm,
+                        to_city=to,
+                        avail_count=avail_days,
+                        status="SUCCESS",
+                        error_msg="",
+                        duration_ms=duration_ms
+                    )
+
+                    with lock:
+                        key = f"{frm}-{to}"
+                        results[key] = {
+                            "from": frm,
+                            "to": to,
+                            "calendar": cal_map,
+                            "updatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        success_count += 1
+                        PATROL_STATE["success"] = success_count
+                        PATROL_STATE["completed"] = success_count + fail_count
+                        PATROL_STATE["percent"] = round((PATROL_STATE["completed"] / total) * 100, 1) if total > 0 else 0
+                        if success_count % 5 == 0 or success_count == total:
+                            print(f"  ⚡ [{pool_name}] 进度: {success_count}/{total} ({PATROL_STATE['percent']}%) 已实时落库")
+                else:
+                    raise last_err or Exception("未知网络异常")
             except Exception as e:
                 duration_ms = int((time.perf_counter() - t_start) * 1000)
+                err_msg = str(e)
                 db.record_patrol_log(
                     batch_id=batch_id,
                     patrol_mode="hot" if is_hot_pool else "all",
@@ -175,15 +199,34 @@ def scan_routes_pool(client: SecCardClient, route_list: list[tuple[str, str]], p
                     to_city=to,
                     avail_count=0,
                     status="FAILED",
-                    error_msg=str(e),
+                    error_msg=err_msg,
                     duration_ms=duration_ms
                 )
                 with lock:
                     fail_count += 1
                     PATROL_STATE["failed"] = fail_count
                     PATROL_STATE["completed"] = success_count + fail_count
+                    PATROL_STATE["percent"] = round((PATROL_STATE["completed"] / total) * 100, 1) if total > 0 else 0
+
+                # 核心安全机制：若为登录态失效 (100001)，进行自动熔断，绝不无效狂刷长龙接口！
+                if "100001" in err_msg or "403" in err_msg or "未登录" in err_msg or "失效" in err_msg:
+                    consecutive_auth_fails += 1
+                    if consecutive_auth_fails >= 2:
+                        print(f"🛑 [安全熔断] 微信登录凭据已失效 (100001)，自动终止本次巡检队列，防止无效请求！")
+                        PATROL_STATE["status_text"] = "已自动安全熔断：微信登录态已过期，请在微信重新查一次票更新 cl.saz"
+                        abort_event.set()
+                        # 清空剩余队列
+                        while not q.empty():
+                            try:
+                                q.get_nowait()
+                                q.task_done()
+                            except Exception:
+                                break
             finally:
-                q.task_done()
+                try:
+                    q.task_done()
+                except Exception:
+                    pass
 
     threads = []
     # 核心热门用单线程极速温和跑（避免并发特征）；全量 398 条用双并发错峰跑
@@ -196,6 +239,7 @@ def scan_routes_pool(client: SecCardClient, route_list: list[tuple[str, str]], p
     for t in threads:
         t.join()
 
+    PATROL_STATE["percent"] = 100
     print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 【{pool_name}】巡检完成！有效拉取: {len(results)} 条，失败: {fail_count} 条，数据已实时落库")
     return results
 
@@ -205,13 +249,32 @@ def run_patrol_cycle(client: SecCardClient, mode: str = "hot"):
     PATROL_STATE["running"] = True
     PATROL_STATE["mode"] = mode
     PATROL_STATE["started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    PATROL_STATE["completed"] = 0
+    PATROL_STATE["percent"] = 0
+    PATROL_STATE["success"] = 0
+    PATROL_STATE["failed"] = 0
+
+    # 1. 发车前健康自检：先探测一条基准航线 (杭州 ➔ 深圳) 测试登录态，如果已过期立即拦截并友好提示，不浪费时间与算力
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔍 执行发车前凭据健康自检...")
+    try:
+        client.check_and_reload()
+        test_cal = client.get_calendar("杭州", "深圳")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🟢 凭据健康自检通过，官方返回 {len(test_cal)} 天日历数据，正式启动巡检！")
+    except Exception as preflight_err:
+        err_msg = str(preflight_err)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🛑 凭据自检失败: {err_msg}")
+        PATROL_STATE["running"] = False
+        PATROL_STATE["status_text"] = f"巡检启动拦截：微信小程序登录凭证已失效 (100001)，请在微信长龙小程序查一次票并导出新 cl.saz 覆盖即可！"
+        PATROL_STATE["failed"] = 1
+        raise RuntimeError("微信小程序登录凭证已失效 (100001)！请在手机微信长龙小程序点查一次票，导出覆盖 cl.saz 后再次点击！")
+
     try:
         if mode == "hot":
             hot_routes = load_hot_routes()
             new_data = scan_routes_pool(client, hot_routes, f"Tier 1 核心热门 ({len(hot_routes)}条)", batch_id)
         else:
             all_routes = load_all_routes()
-            new_data = scan_routes_pool(client, all_routes, "Tier 2 全网 398 直飞拓扑", batch_id)
+            new_data = scan_routes_pool(client, all_routes, "Tier 2 全网直飞拓扑", batch_id)
 
         PATROL_STATE["status_text"] = f"巡检完成！成功刷新并实时覆写 {len(new_data)} 条航线至 SQLite 数据库"
         PATROL_STATE["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -229,19 +292,22 @@ def run_daemon_loop(client: SecCardClient):
 
     while True:
         try:
-            # 动态实时从数据库读取规则
+            # 动态实时从数据库读取规则与开关
+            switches = db.get_patrol_switches()
+            hot_enabled = switches.get("hot_enabled", False)
+            all_enabled = switches.get("all_enabled", False)
+
             cfg = db.get_patrol_config()
             hot_interval = int(cfg.get("hot_interval_minutes", "25")) * 60
             night_silent = (cfg.get("night_silent_enabled", "1") == "1")
             night_start = int(cfg.get("night_start_hour", "0"))
             night_end = int(cfg.get("night_end_hour", "7"))
-            morning_full_hour = int(cfg.get("morning_full_hour", "9"))
-            evening_full_hour = int(cfg.get("evening_full_hour", "20"))
+            full_times = db.get_full_patrol_times()
 
             now = datetime.now()
             hour = now.hour
-            minute = now.minute
             today_str = now.strftime("%Y-%m-%d")
+            curr_hm = now.strftime("%H:%M")
 
             # 1. 判断是否处于夜间静默时段
             if night_silent and (night_start <= hour < night_end):
@@ -249,23 +315,24 @@ def run_daemon_loop(client: SecCardClient):
                 time.sleep(300)
                 continue
 
-            # 2. 判断是否触发放票节点全网普查
-            slot_key = ""
-            if hour == morning_full_hour and minute < 25:
-                slot_key = f"{today_str}-{morning_full_hour:02d}"
-            elif hour == evening_full_hour and minute < 25:
-                slot_key = f"{today_str}-{evening_full_hour:02d}"
-
-            if slot_key and slot_key not in last_full_dates:
-                print(f"\n🔔 [{now.strftime('%H:%M:%S')}] 触发官方黄金放票窗口全网普查 ({slot_key})！")
-                run_patrol_cycle(client, mode="all")
-                last_full_dates.add(slot_key)
-                last_hot_time = time.time()
-                time.sleep(60)
+            # 2. 判断是否触发自定义定时全网全量普查 (至多3个时间点，仅在启用开关时按照规则执行)
+            triggered_full = False
+            if all_enabled:
+                for t_hm in full_times:
+                    slot_key = f"{today_str}-{t_hm}"
+                    if curr_hm == t_hm and slot_key not in last_full_dates:
+                        print(f"\n🔔 [{now.strftime('%H:%M:%S')}] 触发自定义全量普查时间点 ({t_hm})！")
+                        run_patrol_cycle(client, mode="all")
+                        last_full_dates.add(slot_key)
+                        last_hot_time = time.time()
+                        time.sleep(60)
+                        triggered_full = True
+                        break
+            if triggered_full:
                 continue
 
-            # 3. 判断是否触发日间热门巡检 (默认每 25 分钟)
-            if time.time() - last_hot_time >= hot_interval:
+            # 3. 判断是否触发日间热门巡检 (默认每 25 分钟，仅在启用开关时按照规则执行)
+            if hot_enabled and (time.time() - last_hot_time >= hot_interval):
                 print(f"\n⚡ [{now.strftime('%H:%M:%S')}] 触发定时热门巡检 (周期 {hot_interval//60} 分钟)...")
                 run_patrol_cycle(client, mode="hot")
                 last_hot_time = time.time()
