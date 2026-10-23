@@ -27,7 +27,7 @@
         <div style="margin-bottom:20px;">
           <div style="font-size:0.9rem; font-weight:800; color:#059669; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
             <span>近 60 天可兑换出行日 ({{ (route.availableDates || []).length }} 天)</span>
-            <span style="font-size:0.72rem; color:var(--text-muted); font-weight:normal;">点击任意日期查验各班余票</span>
+            <span style="font-size:0.72rem; color:var(--text-muted); font-weight:normal;">已查验日期触摸即显 · 未查验点击查询</span>
           </div>
 
           <div style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -39,7 +39,9 @@
                 'is-weekend': isWeekend(d),
                 'is-checked': Boolean(seatCache[`${route.from}-${route.to}-${d}`])
               }"
-              @click="$emit('click-date', { from: route.from, to: route.to, date: d, targetEl: $event.currentTarget })"
+              @click="onPillClick(d, $event)"
+              @mouseenter="onPillMouseEnter(d, $event)"
+              @mouseleave="onPillMouseLeave(d)"
             >
               <span>{{ formatDateLabel(d) }}</span>
               <template v-if="seatCache[`${route.from}-${route.to}-${d}`]">
@@ -108,7 +110,7 @@ const props = defineProps({
   }
 });
 
-defineEmits(['close', 'click-date']);
+const emit = defineEmits(['close', 'click-date', 'hover-date', 'leave-date']);
 
 const onwardTip = computed(() => DEST_ONWARD_TIPS[props.route.to] || '');
 const railHubs = computed(() => HIGH_SPEED_RAIL_CONNECTIONS[props.route.from] || []);
@@ -122,5 +124,26 @@ function formatDateLabel(d) {
 function isWeekend(d) {
   const day = new Date(d).getDay();
   return day === 0 || day === 6;
+}
+
+function hasCachedData(d) {
+  const cacheKey = `${props.route.from}-${props.route.to}-${d}`;
+  return Boolean(props.seatCache[cacheKey]);
+}
+
+function onPillClick(d, event) {
+  emit('click-date', { from: props.route.from, to: props.route.to, date: d, targetEl: event.currentTarget });
+}
+
+function onPillMouseEnter(d, event) {
+  if (hasCachedData(d)) {
+    emit('hover-date', { from: props.route.from, to: props.route.to, date: d, targetEl: event.currentTarget });
+  }
+}
+
+function onPillMouseLeave(d) {
+  if (hasCachedData(d)) {
+    emit('leave-date');
+  }
 }
 </script>

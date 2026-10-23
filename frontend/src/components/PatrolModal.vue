@@ -188,8 +188,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { ICONS } from '../data/icons.js';
 import { DIRECT_MAP } from '../data/routes-network.js';
 import { 
-  fetchPatrolConfig, 
-  savePatrolConfig, 
+  fetchPatrolHotRoutes,
+  savePatrolHotRoutes,
   fetchPatrolTimes, 
   savePatrolTimes, 
   fetchPatrolSwitches, 
@@ -226,13 +226,15 @@ watch(newFrom, (val) => {
 
 async function loadData() {
   try {
-    const [cfgRes, timesRes, swRes] = await Promise.all([
-      fetchPatrolConfig(),
+    const [hotRes, timesRes, swRes] = await Promise.all([
+      fetchPatrolHotRoutes(),
       fetchPatrolTimes(),
       fetchPatrolSwitches()
     ]);
-    if (cfgRes?.config) routes.value = cfgRes.config;
-    if (timesRes?.times) patrolTimes.value = timesRes.times;
+    if (hotRes?.routes && Array.isArray(hotRes.routes)) {
+      routes.value = hotRes.routes.map(item => Array.isArray(item) ? item : [item.from || '', item.to || '']);
+    }
+    if (timesRes?.times && Array.isArray(timesRes.times)) patrolTimes.value = timesRes.times;
     if (swRes?.switches) switches.value = swRes.switches;
   } catch (e) {
     console.warn('加载巡检配置失败:', e);
@@ -325,7 +327,7 @@ function resetDefault() {
 async function saveAll() {
   try {
     await Promise.all([
-      savePatrolConfig(routes.value),
+      savePatrolHotRoutes(routes.value),
       savePatrolTimes(patrolTimes.value)
     ]);
     emit('saved', routes.value.length);

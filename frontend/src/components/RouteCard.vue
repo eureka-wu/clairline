@@ -98,7 +98,9 @@
             'is-checked': Boolean(seatCache[`${route.from}-${route.to}-${d}`])
           }"
           :title="getPillTitle(d)"
-          @click="$emit('click-date', { from: route.from, to: route.to, date: d, targetEl: $event.currentTarget })"
+          @click="onPillClick(d, $event)"
+          @mouseenter="onPillMouseEnter(d, $event)"
+          @mouseleave="onPillMouseLeave(d)"
         >
           <span>{{ formatDateLabel(d) }}</span>
           <!-- 数据库回显微标 -->
@@ -144,7 +146,28 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['click-date', 'open-drawer', 'refresh-calendar']);
+const emit = defineEmits(['click-date', 'hover-date', 'leave-date', 'open-drawer', 'refresh-calendar']);
+
+function hasCachedData(d) {
+  const cacheKey = `${props.route.from}-${props.route.to}-${d}`;
+  return Boolean(props.seatCache[cacheKey]);
+}
+
+function onPillClick(d, event) {
+  emit('click-date', { from: props.route.from, to: props.route.to, date: d, targetEl: event.currentTarget });
+}
+
+function onPillMouseEnter(d, event) {
+  if (hasCachedData(d)) {
+    emit('hover-date', { from: props.route.from, to: props.route.to, date: d, targetEl: event.currentTarget });
+  }
+}
+
+function onPillMouseLeave(d) {
+  if (hasCachedData(d)) {
+    emit('leave-date');
+  }
+}
 
 const expanded = ref(false);
 const isRefreshing = ref(false);

@@ -2,17 +2,33 @@
  * 巡检配置、定时调度与实时监控 API 接口层
  */
 
+export async function fetchPatrolHotRoutes() {
+  const res = await fetch('/api/patrol/hot-routes');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+export async function savePatrolHotRoutes(routes) {
+  const res = await fetch('/api/patrol/hot-routes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ routes })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
 export async function fetchPatrolConfig() {
   const res = await fetch('/api/patrol/config');
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return await res.json();
 }
 
-export async function savePatrolConfig(routes) {
+export async function savePatrolConfig(config) {
   const res = await fetch('/api/patrol/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ routes })
+    body: JSON.stringify({ config })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return await res.json();

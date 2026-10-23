@@ -1,20 +1,34 @@
 <template>
   <div class="filter-card">
     <div class="filter-left">
-      <!-- 出发城市 -->
+      <!-- 出发城市 (Element Plus 现代可搜索组件) -->
       <span class="filter-label">出发地:</span>
-      <select 
-        class="custom-select-native" 
-        :value="origin" 
-        @change="onOriginChange($event.target.value)"
+      <el-select
+        :model-value="origin"
+        filterable
+        :filter-method="filterOriginMethod"
+        placeholder="搜索出发地 (支持拼音/城市)..."
+        style="width: 205px;"
+        class="custom-el-select"
+        @change="onOriginChange"
       >
-        <option value="全部">全部出发地 (全国 71 城)</option>
-        <optgroup v-for="(group, gIdx) in groupedOrigins" :key="gIdx" :label="group.name">
-          <option v-for="c in group.cities" :key="c" :value="c">
-            {{ c }} ({{ CITY_METADATA[c]?.province || '' }})
-          </option>
-        </optgroup>
-      </select>
+        <el-option label="全部出发地 (全国 71 城)" value="全部">
+          <span style="font-weight:800; color:#0284c7;">全部出发地 (全国 71 城)</span>
+        </el-option>
+        <el-option-group v-for="g in displayGroupedOrigins" :key="g.name" :label="g.name">
+          <el-option
+            v-for="c in g.cities"
+            :key="c"
+            :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
+            :value="c"
+          >
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <span style="font-weight:700;">{{ c }}</span>
+              <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province }} · {{ CITY_METADATA[c]?.region }}</span>
+            </div>
+          </el-option>
+        </el-option-group>
+      </el-select>
 
       <!-- 城市互换按钮 -->
       <button 
@@ -26,18 +40,32 @@
         ⇄
       </button>
 
-      <!-- 目的地城市 (严格级联) -->
+      <!-- 目的地城市 (严格级联 + Element Plus 可搜索组件) -->
       <span class="filter-label">目的地:</span>
-      <select 
-        class="custom-select-native" 
-        :value="destination" 
-        @change="$emit('update:destination', $event.target.value)"
+      <el-select
+        :model-value="destination"
+        filterable
+        :filter-method="filterDestMethod"
+        :placeholder="`全部直飞 (${availableDests.length}城可飞)`"
+        style="width: 205px;"
+        class="custom-el-select"
+        @change="$emit('update:destination', $event)"
       >
-        <option value="全部">全部直飞 ({{ availableDests.length }}城可飞)</option>
-        <option v-for="c in availableDests" :key="c" :value="c">
-          {{ c }} ({{ CITY_METADATA[c]?.province || '' }})
-        </option>
-      </select>
+        <el-option :label="`全部直飞 (${availableDests.length}城可飞)`" value="全部">
+          <span style="font-weight:800; color:#0284c7;">全部直飞 ({{ availableDests.length }}城可飞)</span>
+        </el-option>
+        <el-option
+          v-for="c in filteredDests"
+          :key="c"
+          :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
+          :value="c"
+        >
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <span style="font-weight:700;">{{ c }}</span>
+            <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province }} · {{ CITY_METADATA[c]?.region }}</span>
+          </div>
+        </el-option>
+      </el-select>
 
       <!-- 仅看有票航线开关 -->
       <label class="toggle-switch-wrap" title="点击切换查看有票航线或全部航线">
@@ -57,23 +85,15 @@
         type="button" 
         class="sort-btn" 
         :class="{ active: sortBy === 'recent-first' }"
-        @click="$emit('update:sortBy', 'recent-first')"
+        @click="setSort('recent-first')"
       >
         最近可兑
       </button>
       <button 
         type="button" 
         class="sort-btn" 
-        :class="{ active: sortBy === 'tickets-desc' }"
-        @click="$emit('update:sortBy', 'tickets-desc')"
-      >
-        最多可兑
-      </button>
-      <button 
-        type="button" 
-        class="sort-btn" 
         :class="{ active: sortBy === 'time-asc' }"
-        @click="$emit('update:sortBy', 'time-asc')"
+        @click="setSort('time-asc')"
       >
         起飞时间
       </button>
@@ -81,7 +101,7 @@
         type="button" 
         class="sort-btn" 
         :class="{ active: sortBy === 'dist-desc' }"
-        @click="$emit('update:sortBy', 'dist-desc')"
+        @click="setSort('dist-desc')"
       >
         航距最长
       </button>
@@ -90,7 +110,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { CITY_METADATA } from '../data/city-meta.js';
 import { DIRECT_MAP } from '../data/routes-network.js';
 
@@ -126,8 +146,18 @@ const emit = defineEmits([
   'update:destination', 
   'update:onlyAvailable', 
   'update:sortBy',
+  'update:sort-by',
   'swap-failed'
 ]);
+
+function setSort(type) {
+  emit('update:sortBy', type);
+  emit('update:sort-by', type);
+}
+
+// 拼音/文字搜索状态
+const originQuery = ref('');
+const destQuery = ref('');
 
 // 按枢纽层级分组的出发城市
 const groupedOrigins = computed(() => {
@@ -151,6 +181,22 @@ const groupedOrigins = computed(() => {
   }));
 });
 
+// 支持搜索拼音与中文过滤的出发城市
+const displayGroupedOrigins = computed(() => {
+  const q = originQuery.value.trim().toLowerCase();
+  if (!q) return groupedOrigins.value;
+
+  return groupedOrigins.value.map(g => {
+    const matched = g.cities.filter(c => {
+      const meta = CITY_METADATA[c] || {};
+      const pinyin = meta.pinyin || '';
+      const prov = meta.province || '';
+      return c.includes(q) || pinyin.toLowerCase().includes(q) || prov.includes(q) || (meta.code || '').toLowerCase().includes(q);
+    });
+    return { name: g.name, cities: matched };
+  }).filter(g => g.cities.length > 0);
+});
+
 // 当前出发地可直达的目的地列表 (严格级联)
 const availableDests = computed(() => {
   if (props.origin === '全部') {
@@ -158,6 +204,26 @@ const availableDests = computed(() => {
   }
   return DIRECT_MAP[props.origin] || [];
 });
+
+// 支持拼音搜索的目的地
+const filteredDests = computed(() => {
+  const q = destQuery.value.trim().toLowerCase();
+  if (!q) return availableDests.value;
+  return availableDests.value.filter(c => {
+    const meta = CITY_METADATA[c] || {};
+    const pinyin = meta.pinyin || '';
+    const prov = meta.province || '';
+    return c.includes(q) || pinyin.toLowerCase().includes(q) || prov.includes(q) || (meta.code || '').toLowerCase().includes(q);
+  });
+});
+
+function filterOriginMethod(query) {
+  originQuery.value = query;
+}
+
+function filterDestMethod(query) {
+  destQuery.value = query;
+}
 
 function onOriginChange(newOrigin) {
   emit('update:origin', newOrigin);
@@ -183,20 +249,13 @@ function swapCity() {
 </script>
 
 <style scoped>
-.custom-select-native {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 6px 12px;
-  font-size: 0.84rem;
+:deep(.custom-el-select .el-select__wrapper) {
+  border-radius: var(--radius-md) !important;
   font-weight: 700;
-  color: var(--text-primary);
-  background: #ffffff;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
+  box-shadow: 0 0 0 1px var(--border-subtle) inset !important;
 }
 
-.custom-select-native:focus {
-  border-color: var(--accent-cyan);
+:deep(.custom-el-select .el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1.5px var(--accent-cyan) inset !important;
 }
 </style>

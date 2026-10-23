@@ -282,8 +282,56 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"ok": True, "logs": logs, "count": len(logs)})
             return
 
-        # ----------------------------- 静态资源交给标准库原生高并发流式分发
-        super().do_GET()
+        # 针对未匹配的 API 请求，直接返回标准 404 JSON，避免落入 SPA 静态 fallback
+        if path.startswith("/api/"):
+            self.send_json({"ok": False, "error": f"404 API Not Found: {path}"}, 404)
+            return
+
+        # ----------------------------- 静态资源分发 (支持 Vite 构建产物与 SPA 路由)
+        self.serve_static(path)
+
+    def serve_static(self, rel_path: str):
+        target_dir = DIST_DIR if DIST_DIR.exists() else FRONTEND_DIR
+        clean_rel = rel_path.lstrip("/").split("?")[0].split("#")[0]
+        
+        file_path = (target_dir / clean_rel).resolve()
+        
+        # 安全防御：防止目录穿越
+        try:
+            file_path.relative_to(target_dir.resolve())
+        except ValueError:
+            self.send_error(403, "Forbidden")
+            return
+
+        # 若请求的是根路径或文件不存在（SPA 路由），fallback 至 index.html
+        if not clean_rel or not file_path.exists() or file_path.is_dir():
+            file_path = target_dir / "index.html"
+
+        if not file_path.exists():
+            self.send_error(404, "index.html not found. Please build frontend first.")
+            return
+
+        mime_type, _ = mimetypes.guess_type(str(file_path))
+        if not mime_type:
+            if file_path.suffix == ".js": mime_type = "application/javascript"
+            elif file_path.suffix == ".css": mime_type = "text/css"
+            elif file_path.suffix == ".svg": mime_type = "image/svg+xml"
+            elif file_path.suffix == ".html": mime_type = "text/html"
+            else: mime_type = "application/octet-stream"
+
+        if "text" in mime_type or mime_type in ("application/javascript", "application/json"):
+            mime_type += "; charset=utf-8"
+
+        try:
+            with open(file_path, "rb") as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type)
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception as e:
+            self.log_message(f"Error serving {file_path}: {e}")
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)

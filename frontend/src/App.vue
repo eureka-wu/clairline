@@ -48,6 +48,8 @@
             :route="r"
             :seat-cache="seatCache"
             @click-date="handleDateClick"
+            @hover-date="handleDateHover"
+            @leave-date="handleDateLeave"
             @open-drawer="openDrawer"
             @refresh-calendar="handleRefreshCalendar"
           />
@@ -70,7 +72,7 @@
       </section>
     </main>
 
-    <!-- 就地微气泡 Popover -->
+    <!-- 就地微气泡 Popover (触摸即显 · 移走即隐) -->
     <SeatPopover 
       :visible="popover.visible"
       :from-city="popover.fromCity"
@@ -82,6 +84,8 @@
       :time-formatted="popover.timeFormatted"
       @close="popover.visible = false"
       @refresh="handlePopoverRefresh"
+      @popover-enter="handlePopoverEnter"
+      @popover-leave="handlePopoverLeave"
     />
 
     <!-- 航线详情与接驳规划抽屉 -->
@@ -91,6 +95,8 @@
       :seat-cache="seatCache"
       @close="drawerVisible = false"
       @click-date="handleDateClick"
+      @hover-date="handleDateHover"
+      @leave-date="handleDateLeave"
     />
 
     <!-- 巡检航线配置模态框 -->
@@ -118,15 +124,16 @@ import PatrolModal from './components/PatrolModal.vue';
 import FlightMap from './components/FlightMap.vue';
 
 import { fetchAvailableRoutes, queryLiveFlights, refreshRouteCalendar } from './api/flights.js';
-import { fetchPatrolConfig } from './api/patrol.js';
+import { fetchPatrolHotRoutes } from './api/patrol.js';
 import { DIRECT_MAP } from './data/routes-network.js';
+import { CITY_METADATA } from './data/city-meta.js';
 
 // 当前状态
 const currentTab = ref('routes');
 const origin = ref('杭州');
 const destination = ref('全部');
 const onlyAvailable = ref(true);
-const sortBy = ref('time-asc');
+const sortBy = ref('recent-first');
 
 const availableRoutes = ref([]);
 const seatCache = ref({});
@@ -138,7 +145,7 @@ const drawerVisible = ref(false);
 const selectedRoute = ref({});
 const patrolModalVisible = ref(false);
 
-// 就地微气泡状态
+// 就地微气泡状态与防抖定时器
 const popover = ref({
   visible: false,
   fromCity: '',
@@ -149,6 +156,7 @@ const popover = ref({
   loading: false,
   timeFormatted: ''
 });
+let popoverCloseTimer = null;
 
 // Toast
 const toast = ref({ visible: false, message: '' });
@@ -163,10 +171,24 @@ function showToast(msg) {
   }, 3000);
 }
 
+// 精确计算航线大圆物理航距 (Haversine 公式)
+function getRouteDistance(r) {
+  if (r.distance && r.distance > 0) return r.distance;
+  const c1 = CITY_METADATA[r.from]?.coords;
+  const c2 = CITY_METADATA[r.to]?.coords;
+  if (!c1 || !c2) return 0;
+  const rad = Math.PI / 180;
+  const lat1 = c1[1] * rad, lat2 = c2[1] * rad;
+  const dLat = (c2[1] - c1[1]) * rad;
+  const dLon = (c2[0] - c1[0]) * rad;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 // 缓存统计
 const cachedDaysCount = computed(() => Object.keys(seatCache.value).length);
 
-// 筛选后的航线列表
+// 筛选后的航线列表 (严谨落实 4 种排序)
 const displayedRoutes = computed(() => {
   let list = availableRoutes.value;
 
@@ -187,16 +209,40 @@ const displayedRoutes = computed(() => {
 
   // 4. 排序
   const sorted = [...list];
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
   if (sortBy.value === 'recent-first') {
+    // 最近可兑：优先按照未来 7 天内放票天数（近期票量密度）降序！
+    // 若 7 天内天数相同，按最早可兑日升序，再按总票数降序，再按航距降序
     sorted.sort((a, b) => {
-      const dA = (a.availableDates || [])[0] || '9999';
-      const dB = (b.availableDates || [])[0] || '9999';
-      return dA.localeCompare(dB);
+      const datesA = a.availableDates || [];
+      const datesB = b.availableDates || [];
+      const recentA = datesA.filter(d => d >= todayStr && d <= sevenDaysLater).length;
+      const recentB = datesB.filter(d => d >= todayStr && d <= sevenDaysLater).length;
+      if (recentB !== recentA) return recentB - recentA;
+
+      const firstA = datesA.find(d => d >= todayStr) || '9999-99-99';
+      const firstB = datesB.find(d => d >= todayStr) || '9999-99-99';
+      if (firstA !== firstB) return firstA.localeCompare(firstB);
+
+      const cntDiff = (b.availableDaysCount || datesB.length) - (a.availableDaysCount || datesA.length);
+      if (cntDiff !== 0) return cntDiff;
+      return getRouteDistance(b) - getRouteDistance(a);
     });
-  } else if (sortBy.value === 'tickets-desc') {
-    sorted.sort((a, b) => (b.availableDaysCount || 0) - (a.availableDaysCount || 0));
+  } else if (sortBy.value === 'time-asc') {
+    // 起飞时间：按全天最早班次起飞时间升序（如 06:40 早班机排在前，18:00 晚班机排在后）
+    sorted.sort((a, b) => {
+      const timeA = (a.flights && a.flights[0]?.depTime) || '99:99';
+      const timeB = (b.flights && b.flights[0]?.depTime) || '99:99';
+      const diff = timeA.localeCompare(timeB);
+      if (diff !== 0) return diff;
+      return getRouteDistance(b) - getRouteDistance(a);
+    });
   } else if (sortBy.value === 'dist-desc') {
-    sorted.sort((a, b) => (b.distance || 0) - (a.distance || 0));
+    // 航距最长：长途大线排在前
+    sorted.sort((a, b) => getRouteDistance(b) - getRouteDistance(a));
   }
 
   return sorted;
@@ -239,12 +285,58 @@ async function initData() {
 
   // 加载巡检数量
   try {
-    const pRes = await fetchPatrolConfig();
-    if (pRes?.config) patrolCount.value = pRes.config.length;
+    const pRes = await fetchPatrolHotRoutes();
+    if (pRes?.routes) patrolCount.value = pRes.routes.length;
   } catch (e) {}
 }
 
-// 点击具体出行日胶囊
+// 触摸已查验胶囊即显
+function handleDateHover({ from, to, date, targetEl }) {
+  if (popoverCloseTimer) {
+    clearTimeout(popoverCloseTimer);
+    popoverCloseTimer = null;
+  }
+  const cacheKey = `${from}-${to}-${date}`;
+  const cached = seatCache.value[cacheKey];
+  if (cached) {
+    popover.value = {
+      visible: true,
+      fromCity: from,
+      toCity: to,
+      flightDate: date,
+      targetEl: targetEl,
+      flights: cached.flights || [],
+      loading: false,
+      timeFormatted: cached.timeFormatted || cached.timeLabel || ''
+    };
+  }
+}
+
+// 鼠标移出胶囊即延时优雅关闭
+function handleDateLeave() {
+  if (popoverCloseTimer) clearTimeout(popoverCloseTimer);
+  popoverCloseTimer = setTimeout(() => {
+    popover.value.visible = false;
+  }, 160);
+}
+
+// 鼠标进入气泡主体内部保持显示
+function handlePopoverEnter() {
+  if (popoverCloseTimer) {
+    clearTimeout(popoverCloseTimer);
+    popoverCloseTimer = null;
+  }
+}
+
+// 鼠标移出气泡主体关闭
+function handlePopoverLeave() {
+  if (popoverCloseTimer) clearTimeout(popoverCloseTimer);
+  popoverCloseTimer = setTimeout(() => {
+    popover.value.visible = false;
+  }, 160);
+}
+
+// 点击具体出行日胶囊 (未查验的在此处发起联网查询)
 async function handleDateClick({ from, to, date, targetEl }) {
   const cacheKey = `${from}-${to}-${date}`;
   const cached = seatCache.value[cacheKey];
