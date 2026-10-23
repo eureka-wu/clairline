@@ -265,7 +265,7 @@ class SecCardClient:
                     "arrTime": arr,
                     "aircraft": matched_aircraft,
                     "stopover": matched_stopover,
-                    "redeemPrice": c.get("ticketPrice", 266),
+                    "redeemPrice": c.get("ticketPrice", 0),
                     "secCardLeft": c.get("secCardBaseLeftCount", 0),
                     "normalLeft": c.get("leftCount", 0),
                     "cabinCode": c.get("cabinCode", "M")

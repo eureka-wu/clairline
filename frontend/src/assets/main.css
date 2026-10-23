@@ -819,15 +819,19 @@ body.is-map-fullscreen .map-explorer-wrapper {
   margin-top: 2px;
 }
 
+.flight-status-col,
 .flight-price-col {
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .left-badge {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
+  letter-spacing: 0.2px;
 }
 
 .left-badge.avail {
@@ -838,13 +842,6 @@ body.is-map-fullscreen .map-explorer-wrapper {
 .left-badge.empty {
   background: #fee2e2;
   color: #b91c1c;
-}
-
-.flight-price {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #e11d48;
-  margin-top: 2px;
 }
 
 .popover-footer {

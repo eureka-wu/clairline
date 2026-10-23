@@ -77,14 +77,13 @@
                 <span>{{ f.depTime }} ➔ {{ f.arrTime }}</span>
               </div>
             </div>
-            <div class="flight-price-col">
+            <div class="flight-status-col">
               <span 
                 class="left-badge" 
                 :class="f.secCardLeft > 0 ? 'avail' : 'empty'"
               >
                 {{ f.secCardLeft > 0 ? `余 ${f.secCardLeft} 张` : '已兑完' }}
               </span>
-              <div class="flight-price">¥{{ f.redeemPrice }}</div>
             </div>
           </div>
         </template>
