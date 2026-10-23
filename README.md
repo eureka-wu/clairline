@@ -6,6 +6,22 @@
 
 ---
 
+## 📸 界面预览
+
+### 🗺️ 航网地图探索（全屏沉浸大屏）
+
+以广州为出发地的全屏航网：绿线为近 7 天有票 / 20+ 天充裕可兑，灰线为紧俏散票；悬停航线即显示可兑出行日天数，右下角为热度图例。
+
+![航网地图探索](frontend/src/assets/map-view.png)
+
+### ✈️ 航线探索（列表大盘）
+
+吸顶筛选栏 + 航线卡片：展示首末班时刻跨度、60 天日期胶囊，已查验日期以绿色微标回显余票（如 `余13 · 08:56查`），点击日期就地弹出班次明细气泡。
+
+![航线探索列表](frontend/src/assets/table-view.png)
+
+---
+
 ## 🌟 核心特性与架构升级
 
 - ⚡ **Vue 3 + Vite 现代工程体系**：全面转向 Vue 3 组合式 API (`<script setup>`) 与组件化开发，毫秒级 HMR 热更新，代码修改即刻呈现，无需频繁打包；
@@ -83,7 +99,7 @@ ChanglongAirlines/
 │   ├── dist/                 # 生产编译输出目录 (已 gitignore)
 │   ├── src/
 │   │   ├── api/              # API 接口通信模块 (flights.js, patrol.js)
-│   │   ├── assets/           # 统一设计系统 main.css (1280px 居中、淡化极简滚动条、吸顶筛选)
+│   │   ├── assets/           # 统一设计系统 main.css (1280px 居中、淡化极简滚动条、吸顶筛选) 及 README 预览截图 (map-view.png, table-view.png)
 │   │   ├── components/       # 业务组件
 │   │   │   ├── AppHeader.vue         # 顶部导航、品牌名称与巡检入口
 │   │   │   ├── RouteFilterBar.vue    # 出发/目的地级联、互换、排序 (Sticky 吸顶)
