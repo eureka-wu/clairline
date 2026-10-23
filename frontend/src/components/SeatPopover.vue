@@ -43,15 +43,22 @@
         </div>
       </div>
 
-      <!-- 气泡主体内容 -->
-      <div class="popover-body">
-        <!-- 加载中 -->
-        <div v-if="loading" style="padding:16px 10px; text-align:center;">
+      <!-- 气泡主体内容 (保持稳定最小高度，加载时绝不塌缩) -->
+      <div class="popover-body" :class="{ 'is-loading-active': loading }">
+        <!-- 刷新中半透明高质感遮罩 (已有数据时伴随展示，杜绝高度抖动) -->
+        <div v-if="loading && flights && flights.length > 0" class="popover-refreshing-mask">
+          <div class="popover-spin-dot"></div>
+          <span>正在联网查验长龙官方最新票况...</span>
+        </div>
+
+        <!-- 首次查验加载中 (无数据时居中展示平稳高度) -->
+        <div v-if="loading && (!flights || flights.length === 0)" class="popover-initial-loading">
+          <div class="popover-spin-dot" style="margin-bottom:8px;"></div>
           <div style="font-weight:700; font-size:0.86rem; color:var(--text-primary);">正在连接长龙官方系统...</div>
           <div style="font-size:0.74rem; color:var(--text-muted); margin-top:2px;">实时探测当日各航班畅飞卡剩余机位</div>
         </div>
 
-        <!-- 航班列表 -->
+        <!-- 航班列表 (平滑展示) -->
         <template v-else-if="flights && flights.length > 0">
           <div 
             v-for="(f, idx) in flights" 
@@ -83,7 +90,7 @@
         </template>
 
         <!-- 暂无可兑机位 -->
-        <div v-else style="padding:14px 10px; text-align:center;">
+        <div v-else-if="!loading" class="popover-empty-notice">
           <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary);">官方大盘显示有票 · 暂无可兑机位</div>
           <div style="font-size:0.74rem; color:var(--text-muted); margin-top:3px; line-height:1.4;">
             该日免费机位可能已被抢兑完，建议关注临近日期！
@@ -172,9 +179,12 @@ watch(() => [props.visible, props.targetEl, props.flights, props.loading], () =>
   updatePosition();
 });
 
-// 点击外部自动关闭气泡
+// 点击外部自动关闭气泡 (增加脱敏保护：加载中或点击节点已卸载脱离时不关闭)
 function onGlobalClick(e) {
   if (!props.visible) return;
+  if (props.loading) return; // 正在联网刷新查票中，坚决不误关！
+  if (e.target && !document.body.contains(e.target)) return; // 节点已重新渲染脱离文档流，不误判
+
   const pop = popoverRef.value;
   if (pop && !pop.contains(e.target) && (!props.targetEl || !props.targetEl.contains(e.target))) {
     emit('close');

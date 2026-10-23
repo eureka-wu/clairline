@@ -91,6 +91,33 @@ body.is-map-tab .app-container {
   overflow: hidden;
 }
 
+/* 地图大屏全屏沉浸模式：隐藏顶部 Header，地图撑满整块显示器，完整支持下拉筛选与右侧抽屉弹窗 */
+body.is-map-fullscreen .app-header {
+  display: none !important;
+}
+
+body.is-map-fullscreen {
+  overflow: hidden !important;
+  height: 100vh !important;
+  background: #020617 !important;
+}
+
+body.is-map-fullscreen .app-container {
+  max-width: 100vw !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+body.is-map-fullscreen .map-explorer-wrapper {
+  height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* 顶部 Header */
 .app-header {
   position: sticky;
@@ -689,12 +716,56 @@ body.is-map-tab .app-container {
 }
 
 .popover-body {
+  position: relative;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-height: 110px;
   max-height: 280px;
   overflow-y: auto;
+}
+
+/* 刷新中高质感半透明遮罩 (杜绝高度塌缩与鼠标脱落) */
+.popover-refreshing-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--accent-cyan);
+  font-size: 0.76rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+}
+
+.popover-spin-dot {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(2, 132, 199, 0.2);
+  border-top-color: var(--accent-cyan);
+  border-radius: 50%;
+  animation: popoverSpin 0.7s linear infinite;
+}
+
+@keyframes popoverSpin {
+  to { transform: rotate(360deg); }
+}
+
+.popover-initial-loading,
+.popover-empty-notice {
+  padding: 24px 10px;
+  text-align: center;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .popover-flight-item {

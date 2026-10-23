@@ -122,11 +122,16 @@ watch(currentTab, (val) => {
     document.body.classList.add('is-map-tab');
   } else {
     document.body.classList.remove('is-map-tab');
+    document.body.classList.remove('is-map-fullscreen');
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
   }
 }, { immediate: true });
 
 onUnmounted(() => {
   document.body.classList.remove('is-map-tab');
+  document.body.classList.remove('is-map-fullscreen');
 });
 
 const origin = ref('杭州');
@@ -289,12 +294,31 @@ async function initData() {
   } catch (e) {}
 }
 
-// 触摸已查验胶囊即显
-function handleDateHover({ from, to, date, targetEl }) {
+let popoverCloseTimer = null;
+let isHoveringPill = false;
+let isHoveringPopover = false;
+
+function cancelPopoverClose() {
   if (popoverCloseTimer) {
     clearTimeout(popoverCloseTimer);
     popoverCloseTimer = null;
   }
+}
+
+function schedulePopoverClose() {
+  cancelPopoverClose();
+  popoverCloseTimer = setTimeout(() => {
+    // 用户核心需求：只有当鼠标既不在胶囊上、也不在气泡上，且当前未处于刷新中时才关闭！
+    if (!isHoveringPill && !isHoveringPopover && !popover.value.loading) {
+      popover.value.visible = false;
+    }
+  }, 280);
+}
+
+// 触摸已查验胶囊即显
+function handleDateHover({ from, to, date, targetEl }) {
+  isHoveringPill = true;
+  cancelPopoverClose();
   const cacheKey = `${from}-${to}-${date}`;
   const cached = seatCache.value[cacheKey];
   if (cached) {
@@ -311,32 +335,29 @@ function handleDateHover({ from, to, date, targetEl }) {
   }
 }
 
-// 鼠标移出胶囊即延时优雅关闭
+// 鼠标移出胶囊
 function handleDateLeave() {
-  if (popoverCloseTimer) clearTimeout(popoverCloseTimer);
-  popoverCloseTimer = setTimeout(() => {
-    popover.value.visible = false;
-  }, 160);
+  isHoveringPill = false;
+  schedulePopoverClose();
 }
 
 // 鼠标进入气泡主体内部保持显示
 function handlePopoverEnter() {
-  if (popoverCloseTimer) {
-    clearTimeout(popoverCloseTimer);
-    popoverCloseTimer = null;
-  }
+  isHoveringPopover = true;
+  cancelPopoverClose();
 }
 
 // 鼠标移出气泡主体关闭
 function handlePopoverLeave() {
-  if (popoverCloseTimer) clearTimeout(popoverCloseTimer);
-  popoverCloseTimer = setTimeout(() => {
-    popover.value.visible = false;
-  }, 160);
+  isHoveringPopover = false;
+  schedulePopoverClose();
 }
 
 // 点击具体出行日胶囊 (未查验的在此处发起联网查询)
 async function handleDateClick({ from, to, date, targetEl }) {
+  cancelPopoverClose();
+  isHoveringPill = true;
+
   const cacheKey = `${from}-${to}-${date}`;
   const cached = seatCache.value[cacheKey];
 
@@ -387,19 +408,26 @@ async function handleDateClick({ from, to, date, targetEl }) {
       popover.value.loading = false;
       popover.value.flights = res.flights;
       popover.value.timeFormatted = res.queryTime || timeFormatted;
+      popover.value.visible = true; // 保持常驻
     } else {
       popover.value.loading = false;
       popover.value.flights = [];
+      popover.value.visible = true;
     }
   } catch (e) {
     popover.value.loading = false;
+    popover.value.visible = true;
     showToast('查询航班异常，请重试');
   }
 }
 
-// 微气泡内点击“刷新”
+// 微气泡内点击“刷新” (用户需求：点击后保持在原地，移走再消失)
 async function handlePopoverRefresh({ fromCity, toCity, flightDate, targetEl }) {
+  cancelPopoverClose();
+  isHoveringPopover = true;
   popover.value.loading = true;
+  popover.value.visible = true; // 强锁定显示状态
+
   try {
     const res = await queryLiveFlights(fromCity, toCity, flightDate, true);
     if (res.ok && res.flights) {
@@ -419,12 +447,15 @@ async function handlePopoverRefresh({ fromCity, toCity, flightDate, targetEl }) 
       popover.value.loading = false;
       popover.value.flights = res.flights;
       popover.value.timeFormatted = res.queryTime;
+      popover.value.visible = true; // 刷新完成后依然稳稳留存在原位！
       showToast('票况已重新联网刷新并落库！');
     } else {
       popover.value.loading = false;
+      popover.value.visible = true;
     }
   } catch (e) {
     popover.value.loading = false;
+    popover.value.visible = true;
     showToast('刷新超时');
   }
 }
