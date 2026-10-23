@@ -139,7 +139,7 @@ ChanglongAirlines/
 - **秒级热重载**：代码具备文件修改监听机制，当在手机微信长龙小程序查票后导出新 `cl.saz` 覆盖时，**后台无需重启，秒级自动装载最新登录凭据**！
 - **隐私安全保护**：包含个人会话凭证的 `cl.saz` 已被 [`.gitignore`] 严格忽略，绝不会被 Git 跟踪或误上传；已上传的 `changlong.db` 仅为长龙公开的航班与日历大盘数据，100% 不含任何个人身份信息。
 - **获取步骤**：
-  1. 使用 **Fiddler Classic** 开启 HTTPS 解密；
+  1. 下载并安装 Fiddler（[官方下载页](https://www.telerik.com/download/fiddler-everywhere)），开启 HTTPS 解密；
   2. 电脑打开微信「长龙航空」小程序，进入「畅飞卡」专区点开任意航线查一次票；
   3. Fiddler 点击 `File` ➔ `Save` ➔ `All Sessions...`，保存为 **`cl.saz`**；
   4. 存放到 `backend/data/cl.saz` 即可立刻享受实时穿透查票。
