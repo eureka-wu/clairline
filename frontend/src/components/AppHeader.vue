@@ -3,7 +3,7 @@
     <div class="header-inner">
       <div class="brand-area">
         <div class="brand-icon" v-html="ICONS.plane"></div>
-        <div class="brand-title">长龙畅飞卡</div>
+        <div class="brand-title">长龙航线</div>
 
         <!-- Tab Segmented 切换 -->
         <nav class="tab-segmented">

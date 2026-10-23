@@ -161,6 +161,8 @@ const popover = ref({
   timeFormatted: ''
 });
 let popoverCloseTimer = null;
+let isHoveringPill = false;
+let isHoveringPopover = false;
 
 // Toast
 const toast = ref({ visible: false, message: '' });
@@ -293,10 +295,6 @@ async function initData() {
     if (pRes?.routes) patrolCount.value = pRes.routes.length;
   } catch (e) {}
 }
-
-let popoverCloseTimer = null;
-let isHoveringPill = false;
-let isHoveringPopover = false;
 
 function cancelPopoverClose() {
   if (popoverCloseTimer) {
