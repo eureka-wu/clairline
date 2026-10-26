@@ -188,6 +188,14 @@ function handleOverlayClick() {
   background: #b91c1c;
 }
 
+.btn-warning {
+  background: #d97706;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+}
+.btn-warning:hover {
+  background: #b45309;
+}
+
 .btn-success {
   background: #16a34a;
   box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);

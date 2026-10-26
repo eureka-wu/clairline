@@ -172,14 +172,18 @@
       </div>
     </transition>
 
-    <!-- 全局现代高质感 EXE 模态对话框 (替换丑陋的浏览器原生 alert) -->
+    <!-- 全局现代高质感 EXE 模态对话框 (替换丑陋的浏览器原生 alert / confirm) -->
     <AppDialog 
       :visible="appDialog.visible"
       :title="appDialog.title"
       :message="appDialog.message"
       :type="appDialog.type"
       :confirm-text="appDialog.confirmText"
-      @close="appDialog.visible = false"
+      :cancel-text="appDialog.cancelText"
+      :show-cancel="appDialog.showCancel"
+      @confirm="handleDialogConfirm"
+      @cancel="handleDialogCancel"
+      @close="handleDialogClose"
     />
 
     <!-- 悬浮 Toast 轻提示 -->
@@ -259,13 +263,17 @@ const patrolState = ref({
 // 全网普查动态全屏进度条模态框
 const fullPatrolVisible = ref(false);
 
-// 全局现代高质感 EXE 模态对话框
+// 全局现代高质感 EXE 模态对话框 (支持普通提示与双选确认)
 const appDialog = ref({
   visible: false,
   title: '系统提示',
   message: '',
   type: 'info',
-  confirmText: '确定'
+  confirmText: '确定',
+  cancelText: '取消',
+  showCancel: false,
+  onConfirm: null,
+  onCancel: null
 });
 
 function showAppDialog(title, message, type = 'info', confirmText = '知道了') {
@@ -274,13 +282,55 @@ function showAppDialog(title, message, type = 'info', confirmText = '知道了')
     title,
     message,
     type,
-    confirmText
+    confirmText,
+    cancelText: '',
+    showCancel: false,
+    onConfirm: null,
+    onCancel: null
   };
 }
 
-// 挂载到全局 window，供 AuthModal / PatrolModal 随时调起原生质感弹窗
+function showAppConfirm({ title, message, type = 'warning', confirmText = '确定', cancelText = '取消' }) {
+  return new Promise((resolve) => {
+    appDialog.value = {
+      visible: true,
+      title: title || '请确认操作',
+      message: message || '',
+      type,
+      confirmText,
+      cancelText,
+      showCancel: true,
+      onConfirm: () => resolve(true),
+      onCancel: () => resolve(false)
+    };
+  });
+}
+
+function handleDialogConfirm() {
+  if (appDialog.value.onConfirm) {
+    appDialog.value.onConfirm();
+  }
+  appDialog.value.visible = false;
+}
+
+function handleDialogCancel() {
+  if (appDialog.value.onCancel) {
+    appDialog.value.onCancel();
+  }
+  appDialog.value.visible = false;
+}
+
+function handleDialogClose() {
+  if (appDialog.value.showCancel && appDialog.value.onCancel) {
+    appDialog.value.onCancel();
+  }
+  appDialog.value.visible = false;
+}
+
+// 挂载到全局 window，供 AuthModal / PatrolModal 随时调起原生质感弹窗与确认框
 if (typeof window !== 'undefined') {
   window.$dialog = showAppDialog;
+  window.$confirm = showAppConfirm;
 }
 
 let patrolPollTimer = null;

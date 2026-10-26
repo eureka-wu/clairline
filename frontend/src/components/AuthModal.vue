@@ -148,12 +148,14 @@
       <div class="modal-footer" style="justify-content: space-between; align-items:center;">
         <button 
           type="button" 
-          class="btn-glass" 
-          style="font-size:0.7rem; color:#ef4444; border-color:#fecaca; padding:3px 8px;"
-          title="清空数据库个人信息，还原为新用户状态"
+          class="btn-reset-auth" 
+          :disabled="isResettingAuth"
+          title="清空本地会员凭证与卡包缓存，还原为初始状态"
           @click="handleResetAuth"
         >
-          清空登录态 (重置)
+          <span v-if="!isResettingAuth" v-html="ICONS.trash" class="reset-icon"></span>
+          <span v-else class="reset-spinner"></span>
+          <span>{{ isResettingAuth ? '正在清空...' : '清空登录凭据' }}</span>
         </button>
         <div style="display:flex; align-items:center; gap:12px;">
           <a 
@@ -194,6 +196,7 @@ const countdown = ref(0);
 let countdownTimer = null;
 const isVerifyingCaptcha = ref(false);
 const isSubmittingLogin = ref(false);
+const isResettingAuth = ref(false);
 let captchaInstance = null;
 const localAuth = ref(null);
 
@@ -323,18 +326,39 @@ async function handleSmsLogin() {
 }
 
 async function handleResetAuth() {
-  if (!confirm('确定清空本地登录凭据与会员信息？将还原为未登录状态。')) return;
+  let confirmed = false;
+  if (typeof window !== 'undefined' && window.$confirm) {
+    confirmed = await window.$confirm({
+      title: '确定清空会员登录凭据？',
+      message: '此操作将彻底清除本地保存的会员身份、畅飞卡授权与自动续期 Token。\n\n清空后应用将还原为初始未登录状态，需要重新输入手机号登录。',
+      type: 'error',
+      confirmText: '确定清空',
+      cancelText: '取消'
+    });
+  } else {
+    confirmed = confirm('确定清空本地登录凭据与会员信息？将还原为未登录状态。');
+  }
+
+  if (!confirmed) return;
+
+  isResettingAuth.value = true;
   try {
     const res = await resetAuth();
     if (res.ok) {
-      notify('重置成功', '已清空本地会员凭证，已恢复未登录状态！', 'success');
+      notify('重置成功', '已清空本地会员凭证，已恢复初始未登录状态！', 'success');
       showResyncFlow.value = false;
+      mobile.value = '';
+      smsCode.value = '';
       localAuth.value = { is_logged_in: false, user_name: '尚未登录长龙会员' };
       emit('refresh-auth');
       emit('synced');
+    } else {
+      notify('重置提示', res.error || '清空失败', 'error');
     }
   } catch (e) {
     notify('重置失败', e.message || '重置异常', 'error');
+  } finally {
+    isResettingAuth.value = false;
   }
 }
 
@@ -391,5 +415,57 @@ onUnmounted(() => {
   border-color: #e2e8f0;
   color: #94a3b8;
   cursor: not-allowed;
+}
+
+/* 清空登录凭据按钮 (危险操作精致幽灵样式) */
+.btn-reset-auth {
+  font-size: 0.72rem;
+  color: #ef4444;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 6px;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-reset-auth:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+}
+
+.btn-reset-auth:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-reset-auth:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.reset-icon {
+  display: inline-flex;
+  color: #ef4444;
+}
+
+.reset-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fca5a5;
+  border-top-color: #dc2626;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

@@ -404,9 +404,21 @@ function removeRoute(idx) {
   routes.value.splice(idx, 1);
 }
 
-function clearAllRoutes() {
+async function clearAllRoutes() {
   if (routes.value.length === 0) return;
-  if (!confirm('确定要清空全部重点监控航线吗？')) return;
+  let confirmed = false;
+  if (typeof window !== 'undefined' && window.$confirm) {
+    confirmed = await window.$confirm({
+      title: '清空重点监控航线',
+      message: '确定要清空全部重点监控航线列表吗？已保存的巡检配置将一并清空。',
+      type: 'warning',
+      confirmText: '确定清空',
+      cancelText: '取消'
+    });
+  } else {
+    confirmed = confirm('确定要清空全部重点监控航线吗？');
+  }
+  if (!confirmed) return;
   routes.value = [];
 }
 
