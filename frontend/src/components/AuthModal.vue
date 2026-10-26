@@ -5,7 +5,7 @@
       <div class="modal-header">
         <div style="font-weight:800; font-size:1.05rem; display:flex; align-items:center; gap:8px;">
           <span v-html="ICONS.phone" style="color:var(--accent-cyan);"></span>
-          <span>长龙航空 · 手机验证码登录 (免抓包)</span>
+          <span>长龙航空 · 手机验证码登录</span>
         </div>
         <button type="button" class="btn-popover-close" style="font-size:1.3rem;" @click="closeModal">&times;</button>
       </div>
@@ -13,37 +13,30 @@
       <!-- 模态框主体 -->
       <div class="modal-body" style="padding:16px 20px;">
         
-        <!-- 当前状态卡片 -->
+        <!-- 已登录时的会员状态卡片 (未登录时隐藏，保持界面清爽) -->
         <div 
-          style="padding:12px 14px; border-radius:8px; margin-bottom:14px;"
-          :style="{ 
-            background: effectiveAuth?.is_logged_in ? '#f0fdf4' : '#fffbeb',
-            border: effectiveAuth?.is_logged_in ? '1px solid #bbf7d0' : '1px solid #fde68a'
-          }"
+          v-if="effectiveAuth?.is_logged_in"
+          style="padding:12px 14px; border-radius:8px; margin-bottom:14px; background:#f0fdf4; border:1px solid #bbf7d0;"
         >
           <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; align-items:center; gap:10px;">
-              <span 
-                style="width:10px; height:10px; border-radius:50%; display:inline-block;"
-                :style="{ background: effectiveAuth?.is_logged_in ? '#10b981' : '#f59e0b' }"
-              ></span>
+              <span style="width:10px; height:10px; border-radius:50%; display:inline-block; background:#10b981;"></span>
               <div>
                 <div style="font-size:0.85rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
-                  <span>{{ effectiveAuth?.is_logged_in ? effectiveAuth.user_name : '尚未登录长龙会员' }}</span>
+                  <span>{{ effectiveAuth.user_name }}</span>
                   <span 
-                    v-if="effectiveAuth?.is_logged_in && (effectiveAuth.is_verified || effectiveAuth.user_name !== '长龙会员')"
+                    v-if="effectiveAuth.is_verified || effectiveAuth.user_name !== '长龙会员'"
                     style="font-size:0.65rem; padding:1px 5px; border-radius:3px; background:#dcfce7; color:#15803d; font-weight:700;"
                   >
                     已实名
                   </span>
                 </div>
                 <div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">
-                  {{ effectiveAuth?.is_logged_in ? `手机: ${effectiveAuth.mobile || '已同步'} · 更新: ${effectiveAuth.update_time || '刚刚'}` : '登录后即可实时解锁航班剩余机位与全网航线放票日历' }}
+                  手机: {{ effectiveAuth.mobile || '已同步' }} · 更新: {{ effectiveAuth.update_time || '刚刚' }}
                 </div>
               </div>
             </div>
             <span 
-              v-if="effectiveAuth?.is_logged_in"
               style="font-size:0.72rem; padding:3px 9px; border-radius:4px; background:#e0f2fe; color:#0284c7; font-weight:800; display:inline-flex; align-items:center; gap:4px;"
             >
               <span v-html="ICONS.crown" style="display:inline-flex;"></span>
@@ -75,17 +68,11 @@
           </button>
         </div>
 
-        <!-- 场景 2：输入手机号与验证码 -->
-        <div v-else style="background:#f8fafc; border:1px solid var(--border-subtle); border-radius:8px; padding:16px 14px;">
-          <div style="font-size:0.82rem; font-weight:700; color:var(--text-primary); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
-            <span v-html="ICONS.phone" style="color:var(--accent-cyan);"></span>
-            <span>长龙官方短信快捷登录</span>
-            <span style="font-size:0.65rem; background:#dcfce7; color:#15803d; padding:1px 5px; border-radius:4px; font-weight:700;">免抓包 / 零代理</span>
-          </div>
-
+        <!-- 场景 2：输入手机号与验证码 (纯净平铺，无套娃边框与重复标题) -->
+        <div v-else style="padding: 4px 0 2px;">
           <!-- 手机号输入 -->
-          <div style="margin-bottom:12px;">
-            <label style="display:block; font-size:0.72rem; color:var(--text-muted); margin-bottom:5px; font-weight:600;">会员手机号</label>
+          <div style="margin-bottom:14px;">
+            <label style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:6px; font-weight:600;">会员手机号</label>
             <input 
               type="tel" 
               v-model="mobile" 
@@ -134,10 +121,6 @@
             <span>{{ isSubmittingLogin ? '正在验证并同步会员...' : '立即登录并同步会员' }}</span>
           </button>
 
-          <div style="margin-top:10px; font-size:0.7rem; color:#94a3b8; line-height:1.5;">
-            💡 点击【获取验证码】将唤起长龙官方网易易盾安全验证。验证通过后长龙官方短信通道下发验证码，全程直连官方接口，无需安装证书或配置系统代理。
-          </div>
-
           <!-- 挂载易盾组件的隐藏节点 -->
           <div id="yidun-captcha-box" style="display:none;"></div>
         </div>
@@ -162,19 +145,7 @@
           <span style="width:6px; height:6px; border-radius:50%; background:#94a3b8;"></span>
           <span>未登录</span>
         </span>
-        <div style="display:flex; align-items:center; gap:12px;">
-          <a 
-            href="https://github.com/eureka-wu/clairline/tree/test-phone" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            style="font-size:0.7rem; color:var(--text-muted); text-decoration:none; display:inline-flex; align-items:center; gap:4px;"
-            title="GitHub 开源仓库"
-          >
-            <span v-html="ICONS.github" style="display:inline-flex;"></span>
-            <span>clairline (test-phone)</span>
-          </a>
-          <button type="button" class="btn-glass" style="font-size:0.78rem;" @click="closeModal">关闭</button>
-        </div>
+        <button type="button" class="btn-glass" style="font-size:0.78rem;" @click="closeModal">关闭</button>
       </div>
     </div>
   </div>

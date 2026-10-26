@@ -75,17 +75,7 @@
           <span class="btn-label-text">{{ headerLabel }}</span>
         </button>
 
-        <!-- 3. 检查更新与版本展示胶囊 -->
-        <button 
-          type="button" 
-          class="header-pill-btn version-pill"
-          :class="{ 'has-new-version': updateInfo?.has_update }"
-          @click="$emit('open-update')"
-          :title="updateInfo?.has_update ? `发现新版本 ${updateInfo.latest_version}！点击查看更新` : '当前软件版本 (点击检查更新)'"
-        >
-          <span class="btn-icon-wrap icon-tag" v-html="ICONS.tag"></span>
-          <span class="btn-label-text">{{ updateInfo?.has_update ? '新版可用' : (updateInfo?.current_version || 'v2.0.0') }}</span>
-        </button>
+
 
         <!-- 4. GitHub 官方开源仓库链接 -->
         <a 
