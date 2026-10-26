@@ -645,6 +645,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_json({"ok": False, "error": f"长龙接口提示: {err_text}"}, 400)
                     return
 
+            auto_patrol.PATROL_STATE["running"] = True
+            auto_patrol.PATROL_STATE["mode"] = mode
+            auto_patrol.PATROL_STATE["total"] = len(auto_patrol.load_all_routes()) if mode == "all" else len(auto_patrol.load_hot_routes())
+            auto_patrol.PATROL_STATE["completed"] = 0
+            auto_patrol.PATROL_STATE["percent"] = 0
+            auto_patrol.PATROL_STATE["status_text"] = "正在初始化巡检队列..."
+
             def patrol_worker():
                 try:
                     auto_patrol.run_patrol_cycle(client, mode=mode)

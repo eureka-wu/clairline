@@ -496,6 +496,15 @@ async function refreshAuthStatus(directData) {
 
 // 触发全网 397 条航线普查并调起全屏发光雷达扫描进度条
 async function startFullPatrol() {
+  // 立即乐观初始化状态，杜绝网络请求等待过程中的模式与总数闪烁
+  patrolState.value = {
+    ...patrolState.value,
+    running: true,
+    mode: 'all',
+    total: patrolState.value.total > 0 ? patrolState.value.total : 397,
+    percent: patrolState.value.percent || 2,
+    current_route: patrolState.value.current_route || '连接长龙官方航网数据中...'
+  };
   fullPatrolVisible.value = true;
   startPatrolPolling();
   try {
@@ -520,9 +529,16 @@ function handleFullPatrolCompleted() {
   initData();
 }
 
-function handlePatrolTriggered() {
+function handlePatrolTriggered(mode = 'all') {
+  if (mode) {
+    patrolState.value.mode = mode;
+    patrolState.value.running = true;
+    if (mode === 'all') {
+      patrolState.value.total = patrolState.value.total > 0 ? patrolState.value.total : 397;
+    }
+  }
   startPatrolPolling();
-  if (patrolState.value.mode === 'all' || !patrolState.value.mode) {
+  if (patrolState.value.mode === 'all') {
     fullPatrolVisible.value = true;
   }
 }

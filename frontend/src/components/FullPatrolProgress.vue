@@ -97,12 +97,14 @@ const isCompleted = computed(() => {
 });
 
 const isAllMode = computed(() => {
-  return props.patrolState?.mode === 'all' || (props.patrolState?.total && props.patrolState.total > 50);
+  // 只要不是明确标记为重点巡检 (hot)，一律判定为全网航网普查模式，杜绝异步空窗期 fallback 误显为 30 条重点监控
+  return props.patrolState?.mode !== 'hot';
 });
 
 const safeTotal = computed(() => {
   if (props.patrolState?.total && props.patrolState.total > 0) return props.patrolState.total;
-  return isAllMode.value ? 490 : 30;
+  // 长龙官方全国直飞航网拓扑基准库为 397 条直飞航线
+  return isAllMode.value ? 397 : 30;
 });
 
 const modeTitle = computed(() => {
