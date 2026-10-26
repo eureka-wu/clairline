@@ -64,33 +64,19 @@ def build():
         "--paths=.",
         f"--add-data={FRONTEND_DIST};frontend/dist",
         f"--add-data={ROUTES_SEED};backend/data",
-        f"--add-data={ROOT_DIR / 'backend' / 'capture_addon.py'};backend",
-        f"--add-data={ROOT_DIR / 'backend' / 'capture_addon.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'db.py'};backend",
         f"--add-data={ROOT_DIR / 'backend' / 'db.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'seccard_client.py'};backend",
         f"--add-data={ROOT_DIR / 'backend' / 'seccard_client.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'loongair_client.py'};backend",
         f"--add-data={ROOT_DIR / 'backend' / 'loongair_client.py'};.",
-        f"--add-data={ROOT_DIR / 'backend' / 'proxy_util.py'};backend",
-        f"--add-data={ROOT_DIR / 'backend' / 'proxy_util.py'};.",
-        f"--add-data={ROOT_DIR / 'backend' / 'mitmproxy-ca-cert.cer'};backend",
-        f"--add-data={ROOT_DIR / 'backend' / 'mitmproxy-ca-cert.cer'};.",
+        f"--add-data={ROOT_DIR / 'backend' / 'auto_patrol.py'};backend",
+        f"--add-data={ROOT_DIR / 'backend' / 'auto_patrol.py'};.",
+        f"--add-data={ROOT_DIR / 'backend' / 'scheduler.py'};backend",
+        f"--add-data={ROOT_DIR / 'backend' / 'scheduler.py'};.",
+        f"--add-data={ROOT_DIR / 'backend' / 'server.py'};backend",
+        f"--add-data={ROOT_DIR / 'backend' / 'server.py'};.",
     ]
-
-    # 若本机存在独立 mitmdump.exe 及其 _internal 运行时库，直接内置打包进单文件（纯小白用户免装 Python 与抓包工具开箱即用）
-    bundled_mitm = Path(r"D:\bin\mitmdump.exe")
-    bundled_internal = Path(r"D:\bin\_internal")
-    if bundled_mitm.exists() and bundled_internal.exists():
-        print(f"[+] 检测到独立抓包引擎与 _internal 运行时依赖库，正在完整内置封包进客户端...")
-        cmd.extend([
-            f"--add-data={bundled_mitm};backend",
-            f"--add-data={bundled_internal};backend/_internal",
-        ])
-    elif bundled_mitm.exists():
-        cmd.extend([
-            f"--add-data={bundled_mitm};backend",
-        ])
 
     cmd.extend([
         "--hidden-import=server",
@@ -99,8 +85,6 @@ def build():
         "--hidden-import=auto_patrol",
         "--hidden-import=scheduler",
         "--hidden-import=loongair_client",
-        "--hidden-import=capture_manager",
-        "--hidden-import=proxy_util",
         "--hidden-import=webview",
         "--hidden-import=webview.platforms.edgechromium",
         "--hidden-import=pythonnet",

@@ -67,10 +67,9 @@ try:
 except ImportError:
     from backend import db
 
-try:
-    from proxy_util import cleanup_proxy_if_needed
-except ImportError:
-    from backend.proxy_util import cleanup_proxy_if_needed
+def cleanup_proxy_if_needed():
+    """纯手机号免抓包架构，无需操作 Windows 系统代理"""
+    pass
 
 GITHUB_REPO_URL = "https://github.com/eureka-wu/clairline"
 APP_TITLE = "长龙航空 · 畅飞智能助手 v2.0 (GitHub: eureka-wu/clairline)"
