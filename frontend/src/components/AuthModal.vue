@@ -105,7 +105,7 @@
                 v-model="smsCode" 
                 maxlength="6" 
                 placeholder="6位短信验证码" 
-                class="sms-input"
+                class="sms-input sms-code-input"
                 style="flex:1;"
                 @keyup.enter="handleSmsLogin"
               />
@@ -270,9 +270,20 @@ function handleTriggerCaptcha() {
         }
         try {
           const res = await sendSmsCode(m, validate);
-          verifyId.value = res.verifyId || '';
-          notify('短信验证码已下发', res.message || '长龙官方已发送验证码，请查收短信！', 'success');
-          startCountdown();
+          if (res.ok) {
+            verifyId.value = res.verifyId || '';
+            startCountdown();
+            if (typeof window !== 'undefined' && window.$toast) {
+              window.$toast('短信验证码已下发，请查收');
+            }
+            // 自动聚焦到短信验证码输入框，体验丝滑无阻断
+            setTimeout(() => {
+              const codeInput = document.querySelector('.sms-code-input');
+              if (codeInput) codeInput.focus();
+            }, 60);
+          } else {
+            notify('发送失败', res.error || '验证码下发异常', 'error');
+          }
         } catch (e) {
           notify('发送验证码失败', e.message || '长龙官方接口下发失败', 'error');
         } finally {
@@ -306,7 +317,9 @@ async function handleSmsLogin() {
   try {
     const res = await loginWithSmsCode(m, c, verifyId.value);
     if (res.ok) {
-      notify('登录成功', res.message || '已成功绑定长龙会员！', 'success');
+      if (typeof window !== 'undefined' && window.$toast) {
+        window.$toast(res.message || '欢迎回来！长龙会员登录成功');
+      }
       showResyncFlow.value = false;
       smsCode.value = '';
       if (res.user) {
@@ -317,9 +330,7 @@ async function handleSmsLogin() {
       }
       emit('refresh-auth', localAuth.value);
       emit('synced');
-      setTimeout(() => {
-        closeModal();
-      }, 600);
+      closeModal();
     } else {
       notify('登录失败', res.error || '验证码错误或已过期', 'error');
     }
