@@ -1,5 +1,5 @@
 /**
- * 会员认证、证书自检与嗅探抓包 API 接口层
+ * 长龙航空会员手机短信直连认证 API 接口层 (纯免抓包版)
  */
 
 export async function fetchAuthStatus() {
@@ -8,42 +8,26 @@ export async function fetchAuthStatus() {
   return await res.json();
 }
 
-export async function startCapture() {
-  const res = await fetch('/api/capture/start', {
-    method: 'POST'
+export async function sendSmsCode(mobile, checkParam) {
+  const res = await fetch('/api/auth/send-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mobile, checkParam })
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
 }
 
-export async function stopCapture() {
-  const res = await fetch('/api/capture/stop', {
-    method: 'POST'
+export async function loginWithSmsCode(mobile, code, verifyId) {
+  const res = await fetch('/api/auth/login-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mobile, code, verifyId })
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
-}
-
-export async function fetchCaptureStatus() {
-  const res = await fetch('/api/capture/status');
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
-}
-
-export async function installCert() {
-  const res = await fetch('/api/cert/install', {
-    method: 'POST'
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
-}
-
-export async function uninstallCert() {
-  const res = await fetch('/api/cert/uninstall', {
-    method: 'POST'
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
 }
 
 export async function resetAuth() {
@@ -53,4 +37,3 @@ export async function resetAuth() {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return await res.json();
 }
-

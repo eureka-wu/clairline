@@ -286,21 +286,37 @@ class SecCardClient:
                 payload = json.loads(raw_bytes.decode("utf-8", "replace"))
         except urllib.error.HTTPError as e:
             if e.code == 403:
-                # 尝试强制热重载重试一次
+                # 尝试通过 refreshToken 自动续期重试
                 if retry_on_auth_err:
+                    try:
+                        from loongair_client import refresh_access_token
+                        if refresh_access_token().get("ok"):
+                            self.check_and_reload(force=True)
+                            return self.call_api(method, params, retry_on_auth_err=False)
+                    except Exception:
+                        pass
                     self.check_and_reload(force=True)
                     return self.call_api(method, params, retry_on_auth_err=False)
-                raise RuntimeError("长龙接口 403 Forbidden：登录 Session 已失效，请在手机微信重新打开小程序查一次票，导出覆盖 cl.saz 即可恢复")
+                raise RuntimeError("长龙接口 403 Forbidden：登录 Session 已失效，请点击右上角使用手机验证码重新登录")
             raise RuntimeError(f"长龙接口 HTTP 错误: {e.code}")
         except Exception as e:
             raise RuntimeError(f"网络请求失败: {e}")
 
         if payload.get("ErrorCode") == 100001:
-            # 未登录：尝试强制重载最新 saz 重试一次
+            # 未登录/Token过期：优先通过 refreshToken 尝试无感自动续期换票
             if retry_on_auth_err:
+                try:
+                    from loongair_client import refresh_access_token
+                    ref_res = refresh_access_token()
+                    if ref_res.get("ok"):
+                        print(f"[*] 捕捉到 100001，已成功通过 refreshToken 自动续期并重试请求！")
+                        self.check_and_reload(force=True)
+                        return self.call_api(method, params, retry_on_auth_err=False)
+                except Exception as ex:
+                    print(f"[!] 自动续期异常: {ex}")
                 self.check_and_reload(force=True)
                 return self.call_api(method, params, retry_on_auth_err=False)
-            raise RuntimeError("长龙接口未登录 (100001)：微信小程序登录态已过期，请在手机微信点开长龙航空畅飞卡随意查一次票，导出新 cl.saz 覆盖即可立即恢复！")
+            raise RuntimeError("长龙会员登录凭据已过期 (100001)，请点击右上角【手机验证码登录】重新登录！")
 
         if payload.get("ErrorCode") != 0:
             raise RuntimeError(f"长龙接口错误 ({payload.get('ErrorCode')}): {payload.get('message')}")

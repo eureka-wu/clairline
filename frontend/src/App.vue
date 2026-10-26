@@ -53,8 +53,8 @@
               style="padding:6px 16px; display:inline-flex; align-items:center; gap:5px;" 
               @click="openAuthModal(true)"
             >
-              <span v-html="ICONS.zap" style="display:inline-flex;"></span>
-              <span>立即同步长龙会员登录</span>
+              <span v-html="ICONS.phone" style="display:inline-flex;"></span>
+              <span>手机验证码登录长龙会员</span>
             </button>
 
 

@@ -38,7 +38,53 @@ import threading
 import db
 from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
 from scheduler import MonitorScheduler
-from capture_manager import capture_mgr, install_root_cert, uninstall_root_cert, reset_user_auth
+
+def get_auth_status() -> dict:
+    prof = db.get_user_profile() or {}
+    token = prof.get("token") or ""
+    is_logged_in = bool(token and len(token) > 10)
+    update_time = prof.get("updated_at") or ""
+    auth_preview = f"{token[:8]}...{token[-4:]}" if len(token) > 12 else (token or "无凭证")
+    
+    mobile = prof.get("mobile", "")
+    masked_mobile = f"{mobile[:3]}****{mobile[-4:]}" if len(mobile) == 11 else (mobile or "")
+    
+    cert = prof.get("cert_number", "")
+    masked_cert = f"{cert[:6]}********{cert[-4:]}" if len(cert) > 10 else (cert or "")
+    
+    return {
+        "ok": True,
+        "is_logged_in": is_logged_in,
+        "user_name": prof.get("user_name", "长龙会员"),
+        "mobile": masked_mobile,
+        "cert_number": masked_cert,
+        "member_level": prof.get("member_level", "乘云会员"),
+        "card_name": prof.get("card_name", "长龙畅飞卡"),
+        "is_verified": prof.get("is_verified", 0),
+        "update_time": update_time,
+        "auth_preview": auth_preview
+    }
+
+def reset_user_auth() -> dict:
+    db.save_user_profile({
+        "user_name": "长龙会员",
+        "mobile": "",
+        "member_level": "普通会员",
+        "cert_number": "",
+        "token": "",
+        "cookie": "",
+        "card_name": "长龙畅飞卡",
+        "encrypted_user_id": "",
+        "sec_card_grant_tid": "",
+        "coupons_count": 0,
+        "cards_count": 0,
+        "points": 0,
+        "is_verified": 0,
+        "headers_json": "{}",
+        "template_json": "{}",
+        "updated_at": ""
+    })
+    return {"ok": True, "message": "已成功清空本地会员凭证，已恢复初始状态"}
 
 
 # 初始化本地 SQLite 数据库
@@ -392,18 +438,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/auth/status":
-            self.send_json(capture_mgr.get_auth_status())
-            return
-
-        elif path == "/api/capture/status":
-            auth_st = capture_mgr.get_auth_status()
-            self.send_json({
-                "ok": True,
-                "status": capture_mgr.status,
-                "message": capture_mgr.message,
-                "last_capture_time": capture_mgr.last_capture_time,
-                "auth": auth_st
-            })
+            self.send_json(get_auth_status())
             return
 
         elif path == "/api/system/check-update":
@@ -608,30 +643,29 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"ok": True, "mode": mode, "message": msg})
             return
 
-        elif path == "/api/capture/start":
-            res = capture_mgr.start_capture()
-            self.send_json(res, 200 if res.get("ok") else 500)
-            return
-
-        elif path == "/api/capture/stop":
-            res = capture_mgr.stop_capture()
-            self.send_json(res)
-            return
-
-        elif path == "/api/cert/install":
-            res = install_root_cert()
-            self.send_json(res, 200 if res.get("ok") else 500)
-            return
-
-        elif path == "/api/cert/uninstall":
-            res = uninstall_root_cert()
-            self.send_json(res, 200 if res.get("ok") else 500)
-            return
-
         elif path == "/api/auth/reset":
             res = reset_user_auth()
             client.check_and_reload()
             self.send_json(res, 200 if res.get("ok") else 500)
+            return
+
+        elif path == "/api/auth/send-code":
+            mobile = str(body.get("mobile") or "").strip()
+            check_param = str(body.get("checkParam") or "").strip()
+            from loongair_client import send_sms_verify_code
+            res = send_sms_verify_code(mobile, check_param)
+            self.send_json(res, 200 if res.get("ok") else 400)
+            return
+
+        elif path == "/api/auth/login-code":
+            mobile = str(body.get("mobile") or "").strip()
+            code = str(body.get("code") or "").strip()
+            verify_id = str(body.get("verifyId") or "").strip()
+            from loongair_client import login_by_mobile_code
+            res = login_by_mobile_code(mobile, code, verify_id)
+            if res.get("ok"):
+                client.check_and_reload()
+            self.send_json(res, 200 if res.get("ok") else 400)
             return
 
 

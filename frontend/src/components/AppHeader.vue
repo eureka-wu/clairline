@@ -53,10 +53,10 @@
           type="button"
           class="header-pill-btn login-pill"
           @click="$emit('open-auth')"
-          title="点击同步微信长龙登录凭据，解锁机位实时查询"
+          title="点击通过手机验证码快捷登录长龙会员，解锁机位实时查询"
         >
-          <span class="btn-icon-wrap" v-html="ICONS.zap"></span>
-          <span class="btn-label-text login-text">同步长龙登录</span>
+          <span class="btn-icon-wrap" v-html="ICONS.phone"></span>
+          <span class="btn-label-text login-text">手机验证码登录</span>
         </button>
 
         <!-- 2. 航线监控按钮 -->
