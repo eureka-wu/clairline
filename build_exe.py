@@ -68,6 +68,8 @@ def build():
         f"--add-data={ROOT_DIR / 'backend' / 'capture_addon.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'db.py'};backend",
         f"--add-data={ROOT_DIR / 'backend' / 'db.py'};.",
+        f"--add-data={ROOT_DIR / 'backend' / 'seccard_client.py'};backend",
+        f"--add-data={ROOT_DIR / 'backend' / 'seccard_client.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'loongair_client.py'};backend",
         f"--add-data={ROOT_DIR / 'backend' / 'loongair_client.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'proxy_util.py'};backend",
