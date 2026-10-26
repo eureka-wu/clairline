@@ -829,7 +829,7 @@ async function handleRefreshCalendar({ from, to, done }) {
       showToast(`【${from} ➔ ${to}】日历已更新！共 ${res.availableDates.length} 天有票`);
     } else {
       const err = res.error || '';
-      if (err.includes('过期') || err.includes('100001') || err.includes('未登录') || err.includes('失效') || err.includes('400')) {
+      if (err.includes('过期') || err.includes('100001') || err.includes('未登录') || err.includes('失效')) {
         openAuthModal(true);
         return;
       }
@@ -837,7 +837,7 @@ async function handleRefreshCalendar({ from, to, done }) {
     }
   } catch (e) {
     const msg = e.message || '';
-    if (msg.includes('过期') || msg.includes('100001') || msg.includes('未登录') || msg.includes('失效') || msg.includes('400')) {
+    if (msg.includes('过期') || msg.includes('100001') || msg.includes('未登录') || msg.includes('失效')) {
       openAuthModal(true);
       return;
     }

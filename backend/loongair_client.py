@@ -240,13 +240,16 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         if not loongair_token:
             return {"ok": False, "error": "长龙返回登录成功但缺少 loongairToken 凭据"}
 
-        # 构造标准的会员请求 Header
+        # 构造标准的会员请求 Header，完美适配长龙 WAF
         auth_headers = {
             "Authorization": loongair_token,
             "Cookie": f"SESSION={loongair_token}",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MicroMessenger/7.0.20",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
+            "X-App-Version": "2.4.77",
+            "NESign": "[object Null]",
+            "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
             "xweb_xhr": "1",
-            "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html"
+            "Accept": "*/*"
         }
 
         # 自动拉取会员姓名、身份证与卡资产

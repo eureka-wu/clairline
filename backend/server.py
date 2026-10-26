@@ -339,16 +339,36 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if not client.headers:
                     client.check_and_reload()
                 if not client.headers:
-                    self.send_json({"ok": False, "error": "当前未登录或缺少会员凭据，请先在右上角同步长龙会员登录！"}, 400)
+                    self.send_json({"ok": False, "error": "当前未登录或缺少会员凭据，请先在右上角使用【手机验证码登录】！"}, 401)
                     return
                 try:
-                    client.check_and_reload()
                     cal = client.get_calendar(from_code, to_code)
                     db.save_route_calendar(frm, to, cal)
                 except Exception as ex:
                     err_msg = str(ex)
                     if "100001" in err_msg or "403" in err_msg or "未登录" in err_msg:
-                        self.send_json({"ok": False, "error": "长龙微信小程序登录态已过期 (100001)，请重新同步长龙会员登录"}, 400)
+                        try:
+                            from loongair_client import refresh_access_token
+                            ref_res = refresh_access_token()
+                            if ref_res.get("ok"):
+                                client.check_and_reload(force=True)
+                                cal = client.get_calendar(from_code, to_code)
+                                db.save_route_calendar(frm, to, cal)
+                                dates = db.get_available_dates(frm, to)
+                                self.send_json({
+                                    "ok": True,
+                                    "from": frm,
+                                    "to": to,
+                                    "fromCode": from_code,
+                                    "toCode": to_code,
+                                    "availableDates": dates,
+                                    "count": len(dates),
+                                    "refreshed": force_refresh
+                                })
+                                return
+                        except Exception:
+                            pass
+                        self.send_json({"ok": False, "error": "长龙会员登录凭据已过期 (100001)，请在右上角使用【手机验证码登录】重新登录"}, 401)
                     else:
                         self.send_json({"ok": False, "error": f"长龙接口请求异常: {err_msg}"}, 500)
                     return
@@ -599,30 +619,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not client.headers:
                 self.send_json({
                     "ok": False,
-                    "error": "未检测到有效会员登录凭据，请先在右上角点击同步长龙会员登录！"
-                }, 400)
+                    "error": "未检测到有效会员登录凭据，请先在右上角使用【手机验证码登录】！"
+                }, 401)
                 return
 
-            # 启动前健康探针：同步检测微信登录态是否依然存活
+            # 启动前健康探针：同步检测登录态是否依然存活
             try:
                 client.check_and_reload()
-                if not client.template.get("secCardGrantTid"):
-                    prof = db.get_user_profile() or {}
-                    if prof.get("sec_card_grant_tid"):
-                        client.template["secCardGrantTid"] = prof["sec_card_grant_tid"]
                 client.get_calendar("杭州", "深圳")
             except Exception as auth_err:
                 err_text = str(auth_err)
                 if "100001" in err_text or "403" in err_text or "未登录" in err_text:
                     self.send_json({
                         "ok": False,
-                        "error": "长龙微信小程序登录态已失效，请点击右上角重新同步一次长龙会员登录态！"
-                    }, 400)
+                        "error": "长龙会员登录凭据已失效，请在右上角使用【手机验证码登录】重新登录！"
+                    }, 401)
                     return
                 elif "scgtid" in err_text.lower() or not client.template.get("secCardGrantTid"):
                     self.send_json({
                         "ok": False,
-                        "error": "已获取会员身份，但尚未锁定畅飞卡卡包授权！请在微信小程序中点开一次【长龙畅飞卡】主页即可完成绑定。"
+                        "error": "已获取会员身份，但尚未获取到有效的长龙畅飞卡资产授权！"
                     }, 400)
                     return
                 else:

@@ -103,60 +103,52 @@ class SecCardClient:
         return None
 
     def check_and_reload(self, force: bool = False):
-        """优先从 SQLite 数据库直接载入会员凭证与畅飞卡模板，秒级响应，彻底摆脱 json 文件依赖"""
+        """
+        100% 优先且唯一从 SQLite 数据库直接载入会员凭证与畅飞卡模板，秒级响应，纯免抓包架构
+        """
         try:
             import db
             prof = db.get_user_profile()
             if prof and prof.get("token"):
-                up_time = prof.get("updated_at", "")
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                if not (up_time and up_time[:10] != today_str):
-                    headers = prof.get("headers") or {}
-                    if not headers:
-                        headers = {
-                            "Authorization": prof["token"],
-                            "Cookie": prof.get("cookie") or f"SESSION={prof['token']}",
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MicroMessenger/7.0.20",
-                            "xweb_xhr": "1"
-                        }
-                    keep = ("Authorization", "NESign", "Cookie", "X-App-Version", "User-Agent", "Referer", "xweb_xhr", "Accept", "Accept-Encoding", "Accept-Language")
-                    lower_map = {k.lower(): v for k, v in headers.items()}
-                    self.headers = {}
-                    for k in keep:
-                        if k in headers:
-                            self.headers[k] = headers[k]
-                        elif k.lower() in lower_map:
-                            self.headers[k] = lower_map[k.lower()]
+                token = prof["token"]
+                # 注入标准全量请求头，完美穿透长龙官方 WAF
+                self.headers = {
+                    "Authorization": token,
+                    "Cookie": f"SESSION={token}",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
+                    "X-App-Version": "2.4.77",
+                    "NESign": "[object Null]",
+                    "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
+                    "xweb_xhr": "1",
+                    "Accept": "*/*"
+                }
 
-                    template = prof.get("template") or {}
-                    if prof.get("sec_card_grant_tid"):
-                        template["secCardGrantTid"] = prof["sec_card_grant_tid"]
-                    if prof.get("encrypted_user_id"):
-                        template["encryptedUserId"] = prof["encrypted_user_id"]
-                    if prof.get("cert_number"):
-                        template["certNumber"] = prof["cert_number"]
-                    if prof.get("mobile"):
-                        template["mobile"] = prof["mobile"]
-                    self.template = template
-                    return
-        except Exception:
-            pass
-
-        source = self.detect_credentials_source()
-        if not source:
-            return
-        stype, spath = source
-        self.saz_path = spath
-        try:
-            mtime = spath.stat().st_mtime
-            if force or mtime != self.last_mtime or not self.headers:
-                if stype == "json":
-                    self.load_from_json(spath)
-                else:
-                    self.load_credentials()
-                self.last_mtime = mtime
-        except Exception:
-            pass
+                template = prof.get("template") or {}
+                if prof.get("sec_card_grant_tid"):
+                    template["secCardGrantTid"] = str(prof["sec_card_grant_tid"])
+                if prof.get("encrypted_user_id"):
+                    template["encryptedUserId"] = str(prof["encrypted_user_id"])
+                if prof.get("cert_number"):
+                    template["certNumber"] = str(prof["cert_number"])
+                if prof.get("mobile"):
+                    template["mobile"] = str(prof["mobile"])
+                template.setdefault("disabilityIDType", 1)
+                template.setdefault("ifNonCompany", False)
+                template.setdefault("tripType", 1)
+                template.setdefault("directionType", "")
+                template.setdefault("bookingScenario", 1)
+                template.setdefault("SaleChannel", 76)
+                template.setdefault("saleChannel", 76)
+                template.setdefault("language", "zh-cn")
+                self.template = template
+                return
+            else:
+                self.headers = {}
+                self.template = {}
+        except Exception as e:
+            print(f"[!] 加载会员凭据异常: {e}")
+            self.headers = {}
+            self.template = {}
 
     def load_from_json(self, json_path: Path):
         try:
@@ -267,40 +259,39 @@ class SecCardClient:
         # 调用前热重载检查
         self.check_and_reload()
         if not self.headers:
-            raise RuntimeError("登录态未就绪：请确保 backend/data/cl.saz 或 changlong.saz 存在并有效")
+            raise RuntimeError("长龙会员未登录：请点击右上角【手机验证码登录】完成绑定！")
         body_obj = {
             "AppID": "ClientService",
             "MethodName": method,
             "Parameters": json.dumps(params, ensure_ascii=False)
         }
-        data = ("paras=" + quote(json.dumps(body_obj, ensure_ascii=False))).encode("utf-8")
-        h = dict(self.headers)
-        h["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
-        req = urllib.request.Request(API, data=data, headers=h, method="POST")
+        data = {"paras": json.dumps(body_obj, ensure_ascii=False)}
+
         try:
-            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            with opener.open(req, timeout=15) as r:
-                raw_bytes = r.read()
-                if raw_bytes[:2] == b"\x1f\x8b":
-                    raw_bytes = gzip.decompress(raw_bytes)
-                payload = json.loads(raw_bytes.decode("utf-8", "replace"))
-        except urllib.error.HTTPError as e:
-            if e.code == 403:
-                # 尝试通过 refreshToken 自动续期重试
+            import requests
+            resp = requests.post(API, data=data, headers=self.headers, timeout=15)
+            if resp.status_code == 403:
+                # 遇到 403 尝试通过 refreshToken 自动续期并重试一次
                 if retry_on_auth_err:
                     try:
                         from loongair_client import refresh_access_token
-                        if refresh_access_token().get("ok"):
+                        ref_res = refresh_access_token()
+                        if ref_res.get("ok"):
+                            print("[*] 遇到 403 响应，已成功通过 refreshToken 自动换票并重试请求！")
                             self.check_and_reload(force=True)
                             return self.call_api(method, params, retry_on_auth_err=False)
-                    except Exception:
-                        pass
-                    self.check_and_reload(force=True)
-                    return self.call_api(method, params, retry_on_auth_err=False)
+                    except Exception as ex:
+                        print(f"[!] 自动续期异常: {ex}")
                 raise RuntimeError("长龙接口 403 Forbidden：登录 Session 已失效，请点击右上角使用手机验证码重新登录")
-            raise RuntimeError(f"长龙接口 HTTP 错误: {e.code}")
-        except Exception as e:
+            
+            resp.raise_for_status()
+            payload = resp.json()
+        except requests.exceptions.RequestException as e:
             raise RuntimeError(f"网络请求失败: {e}")
+        except Exception as e:
+            if "Forbidden" in str(e):
+                raise
+            raise RuntimeError(f"长龙接口异常: {e}")
 
         if payload.get("ErrorCode") == 100001:
             # 未登录/Token过期：优先通过 refreshToken 尝试无感自动续期换票
@@ -314,8 +305,6 @@ class SecCardClient:
                         return self.call_api(method, params, retry_on_auth_err=False)
                 except Exception as ex:
                     print(f"[!] 自动续期异常: {ex}")
-                self.check_and_reload(force=True)
-                return self.call_api(method, params, retry_on_auth_err=False)
             raise RuntimeError("长龙会员登录凭据已过期 (100001)，请点击右上角【手机验证码登录】重新登录！")
 
         if payload.get("ErrorCode") != 0:
