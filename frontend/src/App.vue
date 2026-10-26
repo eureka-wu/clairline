@@ -542,14 +542,17 @@ function handleMinimizePatrol() {
 }
 
 async function handleAuthSynced() {
+  await refreshAuthStatus();
+  if (!authStatus.value?.is_logged_in) {
+    return;
+  }
   showToast('长龙会员登录成功！已自动存入个人数据库');
-  refreshAuthStatus();
   // 消除长龙官方接口异步网络时序差：延迟 600ms 与 1500ms 静默刷新，100% 自动显示真实姓名
   setTimeout(refreshAuthStatus, 600);
   setTimeout(refreshAuthStatus, 1500);
   initData();
 
-  // 核心自动化流水线：登录成功后，全自动触发全网 397 条航线普查，并弹出全屏高美感发光雷达进度条
+  // 核心自动化流水线：仅在真实登录成功后才触发全网普查
   startFullPatrol();
 }
 
@@ -579,6 +582,10 @@ function showToast(msg) {
   toastTimer = setTimeout(() => {
     toast.value.visible = false;
   }, 3000);
+}
+
+if (typeof window !== 'undefined') {
+  window.$toast = showToast;
 }
 
 // 精确计算航线大圆物理航距 (Haversine 公式)

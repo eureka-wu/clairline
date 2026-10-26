@@ -147,6 +147,7 @@
       <!-- 模态框底部 -->
       <div class="modal-footer" style="justify-content: space-between; align-items:center;">
         <button 
+          v-if="effectiveAuth?.is_logged_in"
           type="button" 
           class="btn-reset-auth" 
           :disabled="isResettingAuth"
@@ -157,6 +158,10 @@
           <span v-else class="reset-spinner"></span>
           <span>{{ isResettingAuth ? '正在清空...' : '清空登录凭据' }}</span>
         </button>
+        <span v-else style="font-size:0.72rem; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px;">
+          <span style="width:6px; height:6px; border-radius:50%; background:#94a3b8;"></span>
+          <span>未登录</span>
+        </span>
         <div style="display:flex; align-items:center; gap:12px;">
           <a 
             href="https://github.com/eureka-wu/clairline/tree/test-phone" 
@@ -345,13 +350,15 @@ async function handleResetAuth() {
   try {
     const res = await resetAuth();
     if (res.ok) {
-      notify('重置成功', '已清空本地会员凭证，已恢复初始未登录状态！', 'success');
+      if (typeof window !== 'undefined' && window.$toast) {
+        window.$toast('已清空本地登录凭据，已恢复未登录状态');
+      }
       showResyncFlow.value = false;
       mobile.value = '';
       smsCode.value = '';
       localAuth.value = { is_logged_in: false, user_name: '尚未登录长龙会员' };
-      emit('refresh-auth');
-      emit('synced');
+      emit('refresh-auth', localAuth.value);
+      // 清空操作切忌触发 emit('synced')，避免误触发登录成功后的全网巡检普查流水线
     } else {
       notify('重置提示', res.error || '清空失败', 'error');
     }
