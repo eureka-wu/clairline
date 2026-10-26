@@ -229,14 +229,12 @@ function handleTriggerCaptcha() {
       width: 320,
       onVerify: async function (err, data) {
         if (err) {
-          isVerifyingCaptcha.value = false;
-          notify('验证出错', err.message || '请重新完成安全验证', 'error');
+          // 易盾滑块/点选未通过 (例如 300 unpass error)
+          // 易盾内部会自动刷新并提示用户重新验证，绝不弹窗打断用户连续操作
           return;
         }
         const validate = data?.validate || '';
         if (!validate) {
-          isVerifyingCaptcha.value = false;
-          notify('验证未完成', '未获取到安全验证凭证', 'warning');
           return;
         }
         try {
