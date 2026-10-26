@@ -78,6 +78,10 @@ def build():
         f"--add-data={ROOT_DIR / 'backend' / 'server.py'};.",
     ]
 
+    splash_path = ROOT_DIR / "splash.png"
+    if splash_path.exists():
+        cmd.append(f"--splash={splash_path}")
+
     cmd.extend([
         "--hidden-import=server",
         "--hidden-import=db",
@@ -92,6 +96,22 @@ def build():
         "--hidden-import=bottle",
         "--hidden-import=requests",
         "--hidden-import=sqlite3",
+        # 极致瘦身：彻底剔除被误扫描引入的庞大无用 GUI 库与科学计算库
+        "--exclude-module=PyQt5",
+        "--exclude-module=PyQt6",
+        "--exclude-module=PySide2",
+        "--exclude-module=PySide6",
+        "--exclude-module=tkinter",
+        "--exclude-module=matplotlib",
+        "--exclude-module=numpy",
+        "--exclude-module=pandas",
+        "--exclude-module=scipy",
+        "--exclude-module=unittest",
+        "--exclude-module=pydoc",
+        "--exclude-module=pdb",
+        "--exclude-module=doctest",
+        "--exclude-module=difflib",
+        "--exclude-module=test",
         "app_desktop.py"
     ])
 

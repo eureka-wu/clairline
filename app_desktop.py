@@ -16,6 +16,12 @@ import time
 import threading
 from pathlib import Path
 
+try:
+    import pyi_splash
+    pyi_splash.update_text("正在启动本地引擎与航网大盘...")
+except ImportError:
+    pass
+
 if getattr(sys, "frozen", False):
     EXE_DIR = Path(sys.executable).resolve().parent
 else:
@@ -171,6 +177,13 @@ def main():
             err_msg = f"本地后端服务引擎在 12 秒内未能成功就绪 (端口 {port})。\n请查看桌面 clairline_boot.log 日志定位具体原因。"
             show_fatal_error(err_msg)
             sys.exit(1)
+
+        # 本地服务已就绪，平滑关闭启动闪屏画面
+        try:
+            import pyi_splash
+            pyi_splash.close()
+        except ImportError:
+            pass
 
         # 5. 拉起 WebView2 桌面窗口
         boot_log("Importing webview and creating window...")
