@@ -13,6 +13,7 @@ on:
       - 'app_desktop.py'
       - 'build_exe.py'
       - 'build_mac.py'
+      - 'requirements.txt'
       - '.github/workflows/build.yml'
 
 permissions:
@@ -20,35 +21,33 @@ permissions:
 
 jobs:
   build-macos:
-    name: Build macOS DMG (Apple Silicon & Intel)
+    name: Build macOS DMG
     runs-on: macos-14
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Build Frontend
         working-directory: frontend
         run: |
-          npm ci || npm install
+          npm install
           npm run build
 
-      - name: Setup Python 3.12
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests bottle pywebview pyinstaller pillow pyobjc-framework-WebKit
+          pip install -r requirements.txt
+          pip install pyobjc-framework-WebKit
 
       - name: Build macOS .app and .dmg
         run: |
@@ -62,35 +61,33 @@ jobs:
           if-no-files-found: error
 
   build-windows:
-    name: Build Windows Single-File EXE
+    name: Build Windows EXE
     runs-on: windows-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Build Frontend
         working-directory: frontend
         run: |
-          npm ci || npm install
+          npm install
           npm run build
 
-      - name: Setup Python 3.12
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests bottle pywebview pyinstaller pythonnet
+          pip install -r requirements.txt
+          pip install pythonnet
 
       - name: Build Windows EXE
         run: |
