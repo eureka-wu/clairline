@@ -94,6 +94,31 @@ docker run -d \
 
 ---
 
+## 🤖 Model Context Protocol (MCP) 原生集成（AI 私人航空管家）
+
+> 💡 **告别盲目搜票，让大模型直接操控长龙助手！**  
+> Clairline 现已深度原生支持 Anthropic **Model Context Protocol (MCP)** 规范。  
+> 无论是在 **Claude Desktop**、**Cursor**、**Antigravity** 还是 **Windsurf** 中，AI 都能直接调用 6 大专属长龙工具：
+
+- ⚡ **即时官方数据直连**：AI 查票直接穿透长龙官方接口，获取航班最新起降时刻与当班**真实剩余机位**；
+- 📅 **60 天日历毫秒大盘**：自动过滤禁兑日与无票日，秒级回答未来整月出行机会；
+- 🎯 **操控后台自动监控**：“*帮我把杭州到阿勒泰加到监控列表*” —— AI 直接替你入库执行！
+
+### 极简接入（以 Cursor / Antigravity 为例）
+只需在 MCP 配置中添加 SSE 端点（容器运行或本地启动均可）：
+```json
+{
+  "mcpServers": {
+    "clairline": {
+      "url": "http://localhost:3000/sse"
+    }
+  }
+}
+```
+👉 **详细配置说明与真实 Prompt 示例请参阅**：[docs/MCP_GUIDE.md](docs/MCP_GUIDE.md)
+
+---
+
 ## ⚡ 极速上手：下载 Release 绿色客户端 (桌面用户强烈推荐)
 
 > **零环境依赖！无需安装 Python、无需配置 Node.js/npm，双击即开即用！**

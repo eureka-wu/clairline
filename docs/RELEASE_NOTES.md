@@ -25,6 +25,10 @@
 - **直飞拓扑与数据源校验**：修正仅看有票开关切换时航线总数保持不变的问题，数据源现包含全量 397 条航线直飞拓扑；
 - **纯粹信息展现**：彻底剥离全网接驳漫游方案与多余的“联网”文案，去除华东/西北等无效行政大区文字标签，直接呈现城市与所属省份，降低信息噪点。
 
+### 4. 🤖 Model Context Protocol (MCP) 原生协议支持
+- **6 大核心 MCP 工具**：涵盖实时长龙官方查票（即时余票/起降时间）、60天放票日历大盘检索、直飞拓扑探索、重点航线监控管理以及会员资产档案；
+- **双模接入极速支持**：既支持标准 stdio 管道（如 `docker exec -i clairline python -m backend.mcp_server`），又原生提供 `http://IP:3000/sse` 网络流端点，无缝挂载至 Claude Desktop、Cursor、Antigravity 与各类大模型 Agent。详细文档参见 [docs/MCP_GUIDE.md](MCP_GUIDE.md)。
+
 ---
 
 ## 📦 桌面端产物下载

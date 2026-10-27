@@ -36,6 +36,7 @@ if str(BACKEND_DIR) not in sys.path:
 import auto_patrol
 import threading
 import db
+import mcp_server
 from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
 from scheduler import MonitorScheduler
 
@@ -471,8 +472,27 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 "ok": True,
                 "version": APP_VERSION,
                 "github": f"https://github.com/{GITHUB_REPO}",
-                "repo": GITHUB_REPO
+                "repo": GITHUB_REPO,
+                "mcp": {
+                    "enabled": True,
+                    "sse_endpoint": "/sse",
+                    "rpc_endpoint": "/api/mcp/rpc"
+                }
             })
+            return
+
+        elif path in ("/sse", "/api/mcp/sse"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            try:
+                self.wfile.write(b"event: endpoint\ndata: /api/mcp/rpc\n\n")
+                self.wfile.flush()
+            except Exception:
+                pass
             return
 
         # 针对未匹配的 API 请求，直接返回标准 404 JSON，避免落入 SPA 静态 fallback
@@ -691,6 +711,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(res, 200 if res.get("ok") else 400)
             return
 
+        elif path in ("/api/mcp/rpc", "/mcp/rpc", "/rpc"):
+            res = mcp_server.process_mcp_request(body)
+            self.send_json(res if res is not None else {})
+            return
+
 
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
 
@@ -711,12 +736,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
 
 def run():
-    # 保持调度监控引擎纯待命状态，绝不随服务启动自动跑轮询 (避免打扰官方接口与后台偷跑)
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), AppHandler)
+    host = os.environ.get("CLAIRLINE_HOST", "0.0.0.0")
+    port = int(os.environ.get("CLAIRLINE_PORT", PORT))
+    server = http.server.ThreadingHTTPServer((host, port), AppHandler)
+    display_host = "localhost" if host == "0.0.0.0" else host
     print("\n=======================================================")
     print(f"✈️ 长龙航空畅飞卡前后端统一服务已启动！")
-    print(f"🌐 本地访问地址: http://localhost:{PORT}")
-    print(f"📡 实时 API 就绪: http://localhost:{PORT}/api/status")
+    print(f"🌐 本地 Web 访问: http://{display_host}:{port}")
+    print(f"📡 实时 API 就绪: http://{display_host}:{port}/api/status")
+    print(f"🤖 MCP 智能助手: http://{display_host}:{port}/sse (JSON-RPC: /api/mcp/rpc)")
     print(f"🛡️ 后台自动轮询: 已彻底关闭 (仅响应用户前端点击与按需查票)")
     print("=======================================================\n")
     if sys.stdout and hasattr(sys.stdout, "flush"):
