@@ -3,304 +3,241 @@
     <div class="modal-card">
       <!-- 模态框头部 -->
       <div class="modal-header">
-        <div style="font-weight:800; font-size:1.05rem; display:flex; align-items:center; gap:8px;">
-          <span v-html="ICONS.radar" style="color:var(--accent-cyan);"></span>
-          <span>航线监控与全网普查</span>
+        <div class="header-title-box">
+          <span class="header-radar-icon" v-html="ICONS.radar"></span>
+          <span>航线巡检配置</span>
         </div>
-        <button type="button" class="btn-popover-close" style="font-size:1.3rem;" @click="$emit('close')">&times;</button>
+        <button type="button" class="btn-modal-close" @click="$emit('close')">&times;</button>
       </div>
 
-      <!-- 双模式切换 Tab 标签导航 (各自独立，清晰分明) -->
-      <div class="patrol-tab-bar">
-        <button 
-          type="button" 
-          class="patrol-tab-item"
-          :class="{ active: activeTab === 'hot' }"
-          @click="activeTab = 'hot'"
-        >
-          <span v-html="ICONS.star" style="display:inline-flex;"></span>
-          <span>重点监控航线 (已关注 {{ routes.length }} 条)</span>
-        </button>
-        <button 
-          type="button" 
-          class="patrol-tab-item tab-all"
-          :class="{ active: activeTab === 'all' }"
-          @click="activeTab = 'all'"
-        >
-          <span v-html="ICONS.globe" style="display:inline-flex;"></span>
-          <span>全网航网普查 (全量直飞拓扑)</span>
-        </button>
+      <!-- 现代分段切换器 (Segmented Pills) -->
+      <div class="modal-tabs-wrapper">
+        <div class="modal-tab-segmented">
+          <button 
+            type="button" 
+            class="tab-pill"
+            :class="{ active: activeTab === 'hot' }"
+            @click="activeTab = 'hot'"
+          >
+            <span v-html="ICONS.star"></span>
+            <span>重点监控 ({{ routes.length }})</span>
+          </button>
+          <button 
+            type="button" 
+            class="tab-pill"
+            :class="{ active: activeTab === 'all' }"
+            @click="activeTab = 'all'"
+          >
+            <span v-html="ICONS.globe"></span>
+            <span>全网普查 (397条)</span>
+          </button>
+        </div>
       </div>
 
       <!-- 模态框主体 -->
-      <div class="modal-body" style="padding:16px 20px;">
+      <div class="modal-body">
         
-        <!-- ==================== 选项卡 1：重点监控航线 (表格列表，不设上限) ==================== -->
-        <div v-show="activeTab === 'hot'">
-          <!-- 状态与定时批次配置条 -->
-          <div class="patrol-bar-status">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span class="seat-badge">
-                已关注重点航线: {{ routes.length }} 条 · 不设上限
-              </span>
+        <!-- ==================== TAB 1：重点监控航线 ==================== -->
+        <div v-show="activeTab === 'hot'" class="tab-content">
+          <!-- 自动化轮巡微配置条 -->
+          <div class="patrol-config-bar">
+            <div class="config-bar-left">
+              <span class="count-tag">已关注 {{ routes.length }} 条</span>
             </div>
             
-            <!-- 自动轮巡总开关与时间批次调节 -->
-            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-              <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; font-weight:700; color:#334155;">
+            <div class="config-bar-right">
+              <label class="toggle-control-label">
                 <input 
                   type="checkbox" 
                   :checked="switches.hot_enabled" 
                   @change="onSwitchChange('hot_enabled', $event.target.checked)"
-                  style="accent-color:#0284c7;"
+                  class="custom-chk"
                 >
-                <span>后台自动轮巡: {{ switches.hot_enabled ? '已启用' : '已停用' }}</span>
+                <span>自动轮巡</span>
               </label>
 
-              <!-- 时间批次可调 (多少分钟查一次) -->
-              <div style="display:inline-flex; align-items:center; gap:4px; font-size:0.75rem; color:#475569;">
+              <div class="interval-input-group">
                 <span>每</span>
                 <input 
                   type="number" 
                   v-model.number="hotIntervalMinutes" 
                   min="5" 
                   max="720" 
-                  class="custom-number-input"
-                  title="后台巡检周期时间间隔 (分钟)"
+                  class="input-minutes"
                 >
-                <span>分钟巡检一次</span>
+                <span>分钟</span>
               </div>
             </div>
           </div>
 
-          <!-- 添加新航线行 (置顶快捷录入) -->
-          <div class="add-route-card">
-            <div class="add-route-inputs-flow">
-              <div class="add-route-selects-pair">
-                <select v-model="newFrom" class="custom-select-native" style="padding:4px 8px; font-size:0.8rem;">
-                  <option v-for="c in availableOrigins" :key="c" :value="c">{{ c }}</option>
-                </select>
-                <span style="color:#94a3b8; font-weight:bold;">➔</span>
-                <select v-model="newTo" class="custom-select-native" style="padding:4px 8px; font-size:0.8rem;">
-                  <option v-for="c in availableDestsForNew" :key="c" :value="c">{{ c }}</option>
-                </select>
+          <!-- 添加新航线录入框 (极简通透一行) -->
+          <div class="add-route-strip">
+            <div class="city-pickers-row">
+              <select v-model="newFrom" class="select-clean">
+                <option v-for="c in availableOrigins" :key="c" :value="c">{{ c }}</option>
+              </select>
+              <span class="route-arrow-icon">➔</span>
+              <select v-model="newTo" class="select-clean">
+                <option v-for="c in availableDestsForNew" :key="c" :value="c">{{ c }}</option>
+              </select>
+            </div>
+            <input 
+              type="text" 
+              v-model="newRouteName" 
+              placeholder="备注 (选填)"
+              class="input-remark-clean"
+              @keydown.enter="addRoute"
+            >
+            <button 
+              type="button" 
+              class="btn-add-action" 
+              :disabled="!newFrom || !newTo"
+              @click="addRoute"
+            >
+              + 添加
+            </button>
+          </div>
+
+          <!-- 航线卡片列表流 (替代陈旧表格) -->
+          <div class="route-cards-list">
+            <div 
+              v-for="(r, idx) in routes" 
+              :key="`${r.from}-${r.to}-${idx}`"
+              class="route-card-item"
+            >
+              <span class="route-index">{{ String(idx + 1).padStart(2, '0') }}</span>
+              <div class="route-cities">
+                <span class="city-name">{{ r.from }}</span>
+                <span class="plane-sym">✈</span>
+                <span class="city-name">{{ r.to }}</span>
               </div>
               <input 
                 type="text" 
-                v-model="newRouteName" 
-                placeholder="航线别名/备注 (选填)"
-                class="route-remark-input"
-                @keydown.enter="addRoute"
+                v-model="r.name" 
+                class="route-inline-remark"
+                placeholder="点击添加备注"
+                title="点击可直接修改此航线备注"
               >
               <button 
                 type="button" 
-                class="btn-primary btn-add-monitor" 
-                :disabled="!newFrom || !newTo"
-                @click="addRoute"
+                class="btn-remove-icon" 
+                @click="removeRoute(idx)"
+                title="移除此关注航线"
               >
-                <span>➕ 加入重点监控</span>
+                &times;
               </button>
+            </div>
+
+            <div v-if="routes.length === 0" class="empty-state-box">
+              <div class="empty-icon">🛫</div>
+              <div class="empty-title">暂未添加重点监控航线</div>
+              <div class="empty-sub">可在上方选择城市添加，或点击下方导入示例</div>
             </div>
           </div>
 
-          <!-- 重点监控航线列表 (表格形式，每行带配置名称，支持上下滚动) -->
-          <div class="route-table-wrapper">
-            <table class="route-table">
-              <thead>
-                <tr>
-                  <th style="width:44px; text-align:center;">#</th>
-                  <th style="width:200px; text-align:left;">配置名称 / 航线备注</th>
-                  <th style="text-align:left;">航线方向 (出发 ➔ 到达)</th>
-                  <th style="width:68px; text-align:center;">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(r, idx) in routes" :key="`${r.from}-${r.to}-${idx}`" class="route-table-row">
-                  <td style="text-align:center; font-weight:700; color:#64748b; font-size:0.75rem;">
-                    {{ String(idx + 1).padStart(2, '0') }}
-                  </td>
-                  <td>
-                    <input 
-                      type="text" 
-                      v-model="r.name" 
-                      class="route-name-input"
-                      placeholder="未命名 (点击输入备注)"
-                      title="点击即可直接修改此航线备注"
-                    >
-                  </td>
-                  <td>
-                    <span class="route-direction-badge">
-                      <span class="city-from">{{ r.from }}</span>
-                      <span class="route-arrow">✈</span>
-                      <span class="city-to">{{ r.to }}</span>
-                    </span>
-                  </td>
-                  <td style="text-align:center;">
-                    <button 
-                      type="button" 
-                      class="btn-remove-row" 
-                      @click="removeRoute(idx)"
-                      title="移除此关注航线"
-                    >
-                      移除
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="routes.length === 0">
-                  <td colspan="4" class="empty-table-cell">
-                    <div style="font-size:1.3rem; margin-bottom:6px;">✈️</div>
-                    <div style="font-weight:700; color:#475569; margin-bottom:4px; font-size:0.85rem;">当前暂未添加重点航线 (默认 0 个，不设上限)</div>
-                    <div style="font-size:0.75rem; color:#94a3b8;">请在上方选择城市随心添加，或点击左下角一键导入常用示例</div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- 手动即时触发栏 -->
-          <div class="trigger-card hot-trigger-card">
-            <div>
-              <div style="font-size:0.82rem; font-weight:700; color:#0369a1;">手动即时监控</div>
-              <div style="font-size:0.72rem; color:#0284c7;">慢速拟人防风控节奏（~4秒/条），更新在库日历，随心自由添加</div>
+          <!-- 巡检实时运行中指示器 -->
+          <div v-if="(patrolState.mode === 'hot' || !patrolState.mode) && (patrolState.running || patrolState.percent > 0)" class="running-progress-card">
+            <div class="running-header">
+              <span class="running-text">⚡ 重点巡检中: {{ currentRouteDisplay }} ({{ patrolState.completed }}/{{ patrolState.total || routes.length }})</span>
+              <span class="running-pct">{{ patrolState.percent }}%</span>
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <button 
-                type="button" 
-                class="btn-primary" 
-                style="padding:6px 14px; font-size:0.78rem; display:inline-flex; align-items:center; gap:5px;"
-                :disabled="patrolState.running || routes.length === 0"
-                @click="triggerManual('hot')"
-              >
-                <span v-html="ICONS.play" style="display:inline-flex;"></span>
-                <span>{{ patrolState.running && patrolState.mode === 'hot' ? '正在监控中...' : `立即监控这 ${routes.length} 条重点航线` }}</span>
-              </button>
-              <button 
-                type="button" 
-                class="btn-glass" 
-                style="padding:6px 12px; font-size:0.78rem; color:#059669; border-color:#a7f3d0; background:#ecfdf5; display:inline-flex; align-items:center; gap:4px;"
-                :disabled="patrolState.running"
-                @click="triggerManual('all')"
-                title="一键普查全国直飞拓扑所有航线"
-              >
-                <span v-html="ICONS.rocket" style="display:inline-flex;"></span>
-                <span>全网大普查 (全量)</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Tab 1 专属重点监控进度条 (两边严格隔离，仅在跑重点监控时显示) -->
-          <div v-if="(patrolState.mode === 'hot' || !patrolState.mode) && (patrolState.running || patrolState.percent > 0)" class="tab-progress-box hot-progress-box">
-            <div class="progress-title-row">
-              <span class="progress-title">⚡ 重点巡检中: {{ currentRouteDisplay }} ({{ patrolState.completed }}/{{ patrolState.total || routes.length }})</span>
-              <div class="progress-right">
-                <span class="progress-pct">{{ patrolState.percent }}%</span>
-                <button type="button" class="btn-expand-link" @click="$emit('expand-full')">展开全屏大图</button>
-              </div>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill hot-fill" :style="{ width: `${patrolState.percent}%` }"></div>
+            <div class="progress-track">
+              <div class="progress-bar-inner hot-bar" :style="{ width: `${patrolState.percent}%` }"></div>
             </div>
           </div>
         </div>
 
-
-        <!-- ==================== 选项卡 2：全网航网普查 (全量拓扑) ==================== -->
-        <div v-show="activeTab === 'all'">
-          <!-- 说明面板 -->
-          <div class="patrol-info-card">
-            <div style="font-size:0.82rem; font-weight:700; color:#15803d; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-              <span v-html="ICONS.globe" style="display:inline-flex;"></span>
-              <span>长龙航空全航网地毯式普查</span>
+        <!-- ==================== TAB 2：全网普查 (极简紧致) ==================== -->
+        <div v-show="activeTab === 'all'" class="tab-content">
+          <!-- 顶部轻量配置条 (与 Tab 1 严格统一) -->
+          <div class="patrol-config-bar">
+            <div class="config-bar-left">
+              <span class="count-tag green-tag">全国直飞 397 条</span>
             </div>
-            <div style="font-size:0.75rem; color:#166534; line-height:1.5;">
-              自动遍历长龙航空全国所有直飞拓扑航线，拉取官方未来 61 天真实放票日历，全面更新大盘数据库，让所有目的地余票一目了然。
-            </div>
-          </div>
-
-          <!-- 定时时间点配置 -->
-          <div style="background:#ffffff; border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:10px 14px; margin-bottom:14px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-              <div style="font-size:0.82rem; font-weight:700; display:flex; align-items:center; gap:6px;">
-                <span v-html="ICONS.clock" style="color:#059669;"></span>
-                <span>全量普查定时时间点 (至多 3 个):</span>
-                <span style="font-size:0.72rem; color:#059669;">已设 {{ patrolTimes.length }}/3 个</span>
-              </div>
-              <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.75rem; font-weight:700; color:#334155;">
+            
+            <div class="config-bar-right">
+              <label class="toggle-control-label">
                 <input 
                   type="checkbox" 
                   :checked="switches.all_enabled" 
                   @change="onSwitchChange('all_enabled', $event.target.checked)"
-                  style="accent-color:#059669;"
+                  class="custom-chk green-chk"
                 >
-                <span>定时普查开关: {{ switches.all_enabled ? '已启用' : '已停用' }}</span>
+                <span>每日定时自动普查</span>
               </label>
             </div>
+          </div>
 
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <!-- 定时时间点微药丸行 -->
+          <div class="clean-time-row">
+            <span class="time-row-label">执行时间点:</span>
+            <div class="time-pills-row">
               <span 
                 v-for="(t, idx) in patrolTimes" 
                 :key="idx"
-                class="time-pill"
+                class="time-badge"
               >
                 <span>{{ t }}</span>
-                <button 
-                  type="button" 
-                  @click="removeTime(idx)"
-                  style="border:none; background:transparent; color:#059669; cursor:pointer;"
-                >&times;</button>
+                <button type="button" class="btn-time-remove" @click="removeTime(idx)">&times;</button>
               </span>
 
-              <div v-if="patrolTimes.length < 3" style="display:inline-flex; align-items:center; gap:6px;">
-                <input type="time" v-model="newTime" style="padding:2px 6px; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:4px;">
-                <button type="button" class="btn-glass" style="padding:3px 8px; font-size:0.75rem;" @click="addTime">+ 添加</button>
+              <div v-if="patrolTimes.length < 3" class="time-add-wrap">
+                <input type="time" v-model="newTime" class="input-time-picker">
+                <button type="button" class="btn-time-add" @click="addTime">+ 添加</button>
               </div>
             </div>
           </div>
 
-          <!-- 立即执行全量普查 -->
-          <div class="trigger-card all-trigger-card">
-            <div>
-              <div style="font-size:0.82rem; font-weight:700; color:#047857;">手动即时全网普查</div>
-              <div style="font-size:0.72rem; color:#059669;">受控多线程并发池遍历全国拓扑，逐条覆盖更新数据库</div>
-            </div>
-            <button 
-              type="button" 
-              class="btn-primary" 
-              style="padding:6px 14px; font-size:0.78rem; background:linear-gradient(135deg, #059669, #047857); display:inline-flex; align-items:center; gap:5px;"
-              :disabled="patrolState.running"
-              @click="triggerManual('all')"
-            >
-              <span v-html="ICONS.rocket" style="display:inline-flex;"></span>
-              <span>{{ patrolState.running && patrolState.mode === 'all' ? '正在全网普查中...' : '立即全网普查 (全量直飞拓扑)' }}</span>
-            </button>
-          </div>
+          <!-- 全网普查启动按钮 -->
+          <button 
+            type="button" 
+            class="btn-full-patrol-trigger"
+            :disabled="patrolState.running"
+            @click="triggerManual('all')"
+          >
+            <span v-html="ICONS.rocket"></span>
+            <span>{{ patrolState.running && patrolState.mode === 'all' ? '正在全网大普查中...' : '立即开始全网大普查 (397条)' }}</span>
+          </button>
 
-          <!-- Tab 2 专属全网普查进度条 (两边严格隔离，仅在跑全网普查时显示) -->
-          <div v-if="patrolState.mode === 'all' && (patrolState.running || patrolState.percent > 0)" class="tab-progress-box all-progress-box">
-            <div class="progress-title-row">
-              <span class="progress-title">🌐 全网大普查中: {{ currentRouteDisplay }} ({{ patrolState.completed }}/{{ patrolState.total || 490 }})</span>
-              <div class="progress-right">
-                <span class="progress-pct">{{ patrolState.percent }}%</span>
-                <button type="button" class="btn-expand-link" @click="$emit('expand-full')">展开全屏大图</button>
-              </div>
+          <!-- 实时进度条 -->
+          <div v-if="patrolState.mode === 'all' && (patrolState.running || patrolState.percent > 0)" class="running-progress-card">
+            <div class="running-header">
+              <span class="running-text">🌐 全网大普查中: {{ currentRouteDisplay }} ({{ patrolState.completed }}/{{ patrolState.total || 397 }})</span>
+              <span class="running-pct">{{ patrolState.percent }}%</span>
             </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill all-fill" :style="{ width: `${patrolState.percent}%` }"></div>
+            <div class="progress-track">
+              <div class="progress-bar-inner all-bar" :style="{ width: `${patrolState.percent}%` }"></div>
             </div>
           </div>
         </div>
 
       </div>
 
-      <!-- 模态框底部 -->
+      <!-- 模态框底部操作栏 (精简低噪，Tab 严格隔离) -->
       <div class="modal-footer">
-        <div class="modal-footer-secondary">
-          <button type="button" class="btn-glass" style="font-size:0.75rem; color:#ef4444; border-color:#fecaca;" @click="clearAllRoutes">清空全部航线</button>
-          <button type="button" class="btn-glass" style="font-size:0.75rem; color:#0284c7;" @click="importExampleRoutes">💡 导入示例 30 条</button>
+        <!-- 仅在重点监控 Tab 显示清空与导入 -->
+        <div v-if="activeTab === 'hot'" class="footer-links-group">
+          <button type="button" class="link-btn text-danger" @click="clearAllRoutes">清空</button>
+          <span class="divider">·</span>
+          <button type="button" class="link-btn text-primary" @click="importExampleRoutes">导入示例(30条)</button>
         </div>
-        <div class="modal-footer-primary">
-          <button type="button" class="btn-glass" style="font-size:0.78rem;" @click="$emit('close')">取消</button>
-          <button type="button" class="btn-primary" style="font-size:0.78rem; font-weight:700;" @click="saveAll">保存配置</button>
+        <div v-else class="footer-links-group">
+          <span style="font-size:0.75rem; color:#94a3b8;">多线程并发遍历 · 覆盖数据库放票日历</span>
+        </div>
+
+        <div class="footer-actions-group">
+          <button 
+            v-if="activeTab === 'hot'"
+            type="button" 
+            class="btn-trigger-action"
+            :disabled="patrolState.running || routes.length === 0"
+            @click="triggerManual('hot')"
+          >
+            <span>{{ patrolState.running && patrolState.mode === 'hot' ? '监控中...' : `▶ 立即巡检 (${routes.length})` }}</span>
+          </button>
+          <button type="button" class="btn-save-primary" @click="saveAll">
+            保存配置
+          </button>
         </div>
       </div>
     </div>
@@ -381,120 +318,140 @@ async function loadData() {
           return {
             from: item[0],
             to: item[1],
-            name: item[2] || `${item[0]} ➔ ${item[1]}`
+            name: `${item[0]} ➔ ${item[1]}`
           };
         }
         return null;
       }).filter(Boolean);
+      if (hotRes.interval_minutes) {
+        hotIntervalMinutes.value = hotRes.interval_minutes;
+      }
     }
-    if (hotRes?.interval) {
-      hotIntervalMinutes.value = Number(hotRes.interval) || 25;
+    if (timesRes?.times && Array.isArray(timesRes.times)) {
+      patrolTimes.value = timesRes.times;
     }
-    if (timesRes?.times && Array.isArray(timesRes.times)) patrolTimes.value = timesRes.times;
-    if (swRes?.switches) switches.value = swRes.switches;
+    if (swRes?.switches) {
+      switches.value = swRes.switches;
+    }
   } catch (e) {
-    console.warn('加载巡检配置失败:', e);
+    console.error('加载监控配置异常:', e);
   }
 }
+
+onMounted(() => {
+  loadData();
+});
 
 watch(() => props.visible, (val) => {
   if (val) loadData();
 });
 
-function removeRoute(idx) {
-  routes.value.splice(idx, 1);
-}
-
-async function clearAllRoutes() {
-  if (routes.value.length === 0) return;
-  let confirmed = false;
-  if (typeof window !== 'undefined' && window.$confirm) {
-    confirmed = await window.$confirm({
-      title: '清空重点监控航线',
-      message: '确定要清空全部重点监控航线列表吗？已保存的巡检配置将一并清空。',
-      type: 'warning',
-      confirmText: '确定清空',
-      cancelText: '取消'
-    });
-  } else {
-    confirmed = confirm('确定要清空全部重点监控航线吗？');
-  }
-  if (!confirmed) return;
-  routes.value = [];
-}
-
 function addRoute() {
   if (!newFrom.value || !newTo.value) return;
   const exists = routes.value.some(r => r.from === newFrom.value && r.to === newTo.value);
   if (exists) {
-    if (typeof window !== 'undefined' && window.$dialog) {
-      window.$dialog('提示', `航线【${newFrom.value} ➔ ${newTo.value}】已在列表中，无需重复添加`);
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast(`已存在监控航线: ${newFrom.value} ➔ ${newTo.value}`);
     } else {
-      alert(`航线【${newFrom.value} ➔ ${newTo.value}】已在列表中`);
+      alert(`已存在监控航线: ${newFrom.value} ➔ ${newTo.value}`);
     }
     return;
   }
-  const defaultName = newRouteName.value.trim() || `${newFrom.value} ➔ ${newTo.value}`;
   routes.value.unshift({
     from: newFrom.value,
     to: newTo.value,
-    name: defaultName
+    name: newRouteName.value.trim() || `${newFrom.value} ➔ ${newTo.value}`
   });
   newRouteName.value = '';
 }
 
+function removeRoute(idx) {
+  routes.value.splice(idx, 1);
+}
+
+function clearAllRoutes() {
+  if (routes.value.length === 0) return;
+  const doClear = () => {
+    routes.value = [];
+  };
+  if (typeof window !== 'undefined' && window.$confirm) {
+    window.$confirm('清空关注航线', '确定清空所有已关注的监控航线吗？', doClear, { type: 'danger', confirmText: '清空' });
+  } else if (confirm('确定清空所有已关注的监控航线吗？')) {
+    doClear();
+  }
+}
+
 function importExampleRoutes() {
-  const exampleDefaults = [
-    { from: "杭州", to: "阿勒泰", name: "滑雪胜地 · 阿勒泰" },
-    { from: "杭州", to: "喀什", name: "丝路古城 · 喀什" },
-    { from: "杭州", to: "三亚", name: "海岛度假 · 三亚" },
-    { from: "杭州", to: "哈尔滨", name: "冰雪大世界" },
-    { from: "杭州", to: "成都", name: "天府之国 · 成都" },
-    { from: "杭州", to: "重庆", name: "山城火锅" },
-    { from: "杭州", to: "广州", name: "粤韵风华" },
-    { from: "杭州", to: "深圳", name: "大湾区核心" },
-    { from: "杭州", to: "乌鲁木齐", name: "大美新疆" },
-    { from: "杭州", to: "长春", name: "北国春城" },
-    { from: "杭州", to: "西宁", name: "青海湖之门" },
-    { from: "杭州", to: "银川", name: "塞上江南" },
-    { from: "杭州", to: "海拉尔", name: "呼伦贝尔大草原" },
-    { from: "银川", to: "杭州", name: "塞上入江南" },
-    { from: "银川", to: "乌鲁木齐", name: "丝绸之路" },
-    { from: "银川", to: "三亚", name: "暖冬直达" },
-    { from: "长春", to: "杭州", name: "南北干线" },
-    { from: "长春", to: "三亚", name: "候鸟度假专线" },
-    { from: "长春", to: "成都", name: "西南畅飞" }
+  const exampleHubs = [
+    { from: '杭州', to: '阿勒泰', name: '雪都滑雪度假' },
+    { from: '杭州', to: '哈尔滨', name: '冰雪大世界' },
+    { from: '杭州', to: '长春', name: '东北长白山' },
+    { from: '杭州', to: '银川', name: '大漠塞上江南' },
+    { from: '杭州', to: '喀什', name: '南疆古城丝路' },
+    { from: '杭州', to: '西双版纳', name: '热带雨林避寒' },
+    { from: '杭州', to: '三亚', name: '热带海岛暖冬' },
+    { from: '杭州', to: '海口', name: '海南环岛自由行' },
+    { from: '杭州', to: '乌鲁木齐', name: '新疆核心大本营' },
+    { from: '杭州', to: '阿克苏', name: '南疆苹果之乡' },
+    { from: '杭州', to: '海拉尔', name: '呼伦贝尔大草原' },
+    { from: '杭州', to: '丽江', name: '云南丽江古城' },
+    { from: '杭州', to: '成都', name: '天府美食慢生活' },
+    { from: '杭州', to: '重庆', name: '魔幻山城火锅' },
+    { from: '杭州', to: '西安', name: '千年古都十三朝' },
+    { from: '杭州', to: '郑州', name: '中原少林文化' },
+    { from: '杭州', to: '北京', name: '首都政经枢纽' },
+    { from: '杭州', to: '深圳', name: '大湾区科技前沿' },
+    { from: '杭州', to: '广州', name: '羊城早茶食在广州' },
+    { from: '杭州', to: '武汉', name: '九省通衢楚天阔' },
+    { from: '银川', to: '杭州', name: '江南水乡返程' },
+    { from: '银川', to: '宁波', name: '东海港口商务' },
+    { from: '长春', to: '杭州', name: '长三角大本营直达' },
+    { from: '宁波', to: '重庆', name: '沿海通达巴蜀' },
+    { from: '宁波', to: '成都', name: '蓉城天府互通' },
+    { from: '温州', to: '贵阳', name: '山水爽爽贵阳' },
+    { from: '温州', to: '武汉', name: '华中经贸要道' },
+    { from: '杭州', to: '贵阳', name: '黔灵甲天下' },
+    { from: '杭州', to: '昆明', name: '春城彩云之南' },
+    { from: '杭州', to: '南宁', name: '北部湾东盟门户' }
   ];
-  let addedCount = 0;
-  for (const ex of exampleDefaults) {
-    if (!routes.value.some(r => r.from === ex.from && r.to === ex.to)) {
-      routes.value.push({ ...ex });
-      addedCount++;
+
+  const doImport = () => {
+    const existingPairs = new Set(routes.value.map(r => `${r.from}-${r.to}`));
+    let added = 0;
+    exampleHubs.forEach(h => {
+      const pair = `${h.from}-${h.to}`;
+      if (!existingPairs.has(pair)) {
+        routes.value.push(h);
+        existingPairs.add(pair);
+        added++;
+      }
+    });
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast(`已导入 ${added} 条核心示例航线`);
     }
+  };
+
+  if (typeof window !== 'undefined' && window.$confirm) {
+    window.$confirm('导入常用示例航线', '将导入长龙官方 30 条核心文旅与公商务主力航线，是否导入？', doImport, { type: 'primary', confirmText: '导入' });
+  } else {
+    doImport();
   }
-  if (typeof window !== 'undefined' && window.$dialog) {
-    window.$dialog('导入成功', `已为您导入 ${addedCount} 条热门优质示例航线！点击【保存配置】即可生效。`, 'success');
-  }
+}
+
+function addTime() {
+  if (!newTime.value) return;
+  if (patrolTimes.value.includes(newTime.value)) return;
+  if (patrolTimes.value.length >= 3) return;
+  patrolTimes.value.push(newTime.value);
+  patrolTimes.value.sort();
 }
 
 function removeTime(idx) {
   patrolTimes.value.splice(idx, 1);
 }
 
-function addTime() {
-  if (patrolTimes.value.length >= 3) return;
-  if (!newTime.value || patrolTimes.value.includes(newTime.value)) return;
-  patrolTimes.value.push(newTime.value);
-  patrolTimes.value.sort();
-}
-
-async function onSwitchChange(key, checked) {
+function onSwitchChange(key, checked) {
   switches.value[key] = checked;
-  try {
-    await savePatrolSwitches(switches.value.hot_enabled, switches.value.all_enabled);
-  } catch (e) {
-    console.warn('更新开关失败:', e);
-  }
 }
 
 async function triggerManual(mode) {
@@ -515,20 +472,13 @@ async function triggerManual(mode) {
         return;
       }
       if (typeof window !== 'undefined' && window.$dialog) {
-        window.$dialog('触发普查提示', err || '未能成功触发巡检普查', 'warning');
+        window.$dialog('提示', err || '未能成功触发巡检', 'warning');
       } else {
-        alert(err || '未能成功触发巡检普查');
+        alert(err || '未能成功触发巡检');
       }
     }
   } catch (e) {
     const msg = e.message || '';
-    if (msg.includes('过期') || msg.includes('100001') || msg.includes('未登录') || msg.includes('失效') || msg.includes('授权') || msg.includes('400')) {
-      emit('close');
-      if (typeof window !== 'undefined' && window.$openAuthModal) {
-        window.$openAuthModal(true);
-      }
-      return;
-    }
     if (typeof window !== 'undefined' && window.$dialog) {
       window.$dialog('操作失败', msg || '网络请求异常', 'error');
     } else {
@@ -551,14 +501,13 @@ async function saveAll() {
     ]);
     emit('saved');
     emit('close');
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast('监控配置已保存！');
+    }
   } catch (e) {
     console.error('保存监控配置失败:', e);
     alert('保存配置失败，请检查服务连接');
   }
-}
-
-function resetDefault() {
-  importExampleRoutes();
 }
 </script>
 
@@ -566,8 +515,9 @@ function resetDefault() {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,396 +527,567 @@ function resetDefault() {
 
 .modal-card {
   background: #ffffff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   width: 100%;
-  max-width: 680px;
-  max-height: 90vh;
+  max-width: 580px;
+  max-height: 86vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 模态框头部 */
 .modal-header {
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.patrol-tab-bar {
-  padding: 10px 20px 0;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+.header-title-box {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.02rem;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.header-radar-icon {
+  display: inline-flex;
+  color: #0284c7;
+}
+
+.btn-modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* 胶囊分段导航 (Segmented Tabs) */
+.modal-tabs-wrapper {
+  padding: 10px 18px 0;
+  background: #ffffff;
+}
+
+.modal-tab-segmented {
+  display: flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+  gap: 4px;
+}
+
+.tab-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-pill.active {
+  background: #ffffff;
+  color: #0284c7;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* 模态框主体 */
+.modal-body {
+  padding: 14px 18px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.patrol-tab-item {
-  padding: 8px 16px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s;
-  display: inline-flex;
+/* 顶部轻量配置条 */
+.patrol-config-bar {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  color: #64748b;
-  border-bottom: 2px solid transparent;
-}
-
-.patrol-tab-item.active {
-  color: var(--accent-cyan);
-  border-bottom-color: var(--accent-cyan);
-}
-
-.patrol-tab-item.tab-all.active {
-  color: #059669;
-  border-bottom-color: #059669;
-}
-
-.patrol-bar-status {
+  justify-content: space-between;
   padding: 8px 12px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.count-tag {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 2px 8px;
   border-radius: 6px;
+}
+
+.config-bar-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
 }
 
-.seat-badge {
-  font-size: 0.75rem;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: #0284c7;
-  color: #ffffff;
-}
-
-.custom-number-input {
-  width: 48px;
-  padding: 2px 4px;
-  text-align: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  outline: none;
-}
-.custom-number-input:focus {
-  border-color: #0284c7;
-}
-
-.add-route-card {
-  background: #f8fafc;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
-  margin-bottom: 12px;
-}
-
-.route-remark-input {
-  flex: 1;
-  min-width: 170px;
-  padding: 5px 8px;
-  font-size: 0.78rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  outline: none;
-}
-.route-remark-input:focus {
-  border-color: #0284c7;
-}
-
-/* 航线表格列表样式 */
-.route-table-wrapper {
-  max-height: 250px;
-  overflow-y: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  margin-bottom: 14px;
-  background: #ffffff;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
-}
-
-.route-table-wrapper::-webkit-scrollbar {
-  width: 5px;
-}
-.route-table-wrapper::-webkit-scrollbar-track {
-  background: #f8fafc;
-}
-.route-table-wrapper::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-.route-table-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.route-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-
-.route-table thead {
-  position: sticky;
-  top: 0;
-  background: #f1f5f9;
-  z-index: 2;
-}
-
-.route-table th {
-  padding: 8px 10px;
-  font-weight: 700;
-  color: #475569;
-  border-bottom: 1px solid #cbd5e1;
-  font-size: 0.75rem;
-}
-
-.route-table-row {
-  border-bottom: 1px solid #f1f5f9;
-  transition: background 0.15s;
-}
-
-.route-table-row:hover {
-  background: #f8fafc;
-}
-
-.route-table td {
-  padding: 6px 10px;
-  vertical-align: middle;
-}
-
-.route-name-input {
-  width: 100%;
-  border: 1px solid transparent;
-  background: transparent;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #0f172a;
-  outline: none;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.route-name-input:hover {
-  border-color: #cbd5e1;
-  background: #ffffff;
-}
-
-.route-name-input:focus {
-  border-color: #0284c7;
-  background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
-}
-
-.route-direction-badge {
+.toggle-control-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  padding: 2px 8px;
-}
-
-.city-from {
-  font-weight: 700;
-  color: #0284c7;
-  font-size: 0.76rem;
-}
-
-.route-arrow {
-  font-size: 0.72rem;
-  color: #94a3b8;
-}
-
-.city-to {
-  font-weight: 700;
-  color: #4f46e5;
-  font-size: 0.76rem;
-}
-
-.btn-remove-row {
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #ef4444;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-remove-row:hover {
-  background: #ef4444;
-  color: #ffffff;
-}
-
-.empty-table-cell {
-  text-align: center;
-  padding: 30px 16px;
-  background: #f8fafc;
-}
-
-/* 触发卡片 */
-.trigger-card {
-  border-radius: 6px;
-  padding: 10px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.hot-trigger-card {
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-}
-
-.all-trigger-card {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
-
-/* 进度条独立展示 */
-.tab-progress-box {
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin-top: 10px;
-}
-
-.hot-progress-box {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.all-progress-box {
-  background: #f0fdf4;
-  border: 1px solid #86efac;
-}
-
-.progress-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  gap: 5px;
   font-size: 0.78rem;
-  margin-bottom: 6px;
-  font-weight: 700;
-  color: #15803d;
-}
-
-.progress-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.progress-pct {
-  font-size: 0.82rem;
-  color: #047857;
-  font-weight: 800;
-}
-
-.btn-expand-link {
-  border: 1px solid #99f6e4;
-  background: #f0fdfa;
-  color: #0d9488;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
+  font-weight: 600;
+  color: #334155;
   cursor: pointer;
 }
 
-.btn-expand-link:hover {
-  background: #0d9488;
-  color: #ffffff;
+.custom-chk {
+  accent-color: #0284c7;
+  width: 15px;
+  height: 15px;
+}
+.custom-chk.green-chk {
+  accent-color: #059669;
 }
 
-.progress-bar-bg {
-  width: 100%;
-  height: 8px;
-  background: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  transition: width 0.3s ease;
-}
-
-.hot-fill {
-  background: linear-gradient(90deg, #0284c7, #38bdf8);
-}
-
-.all-fill {
-  background: linear-gradient(90deg, #10b981, #059669);
-}
-
-.patrol-info-card {
-  padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 6px;
-  margin-bottom: 12px;
-}
-
-.time-pill {
+.interval-input-group {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  color: #047857;
-  font-weight: 800;
-  font-size: 0.78rem;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 0.76rem;
+  color: #64748b;
 }
 
-.add-route-inputs-flow {
+.input-minutes {
+  width: 44px;
+  height: 26px;
+  text-align: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+}
+.input-minutes:focus {
+  border-color: #0284c7;
+}
+
+/* 添加新航线录入框 (极简通透一行) */
+.add-route-strip {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
 }
 
-.add-route-selects-pair {
+.city-pickers-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.modal-footer {
-  padding: 12px 20px;
-  border-top: 1px solid var(--border-subtle);
+.select-clean {
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  cursor: pointer;
+}
+
+.select-clean:focus {
+  border-color: #0284c7;
+}
+
+.route-arrow-icon {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.input-remark-clean {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  outline: none;
+}
+.input-remark-clean:focus {
+  border-color: #0284c7;
+}
+
+.btn-add-action {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.btn-add-action:hover:not(:disabled) {
+  background: #0369a1;
+}
+.btn-add-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 航线卡片流 */
+.route-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.route-card-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.route-card-item:hover {
+  border-color: #cbd5e1;
   background: #f8fafc;
+}
+
+.route-index {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #94a3b8;
+  width: 20px;
+}
+
+.route-cities {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.plane-sym {
+  font-size: 0.75rem;
+  color: #0284c7;
+}
+
+.route-inline-remark {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.78rem;
+  color: #64748b;
+  padding: 2px 4px;
+  outline: none;
+  border-radius: 4px;
+}
+.route-inline-remark:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #0284c7;
+  color: #0f172a;
+}
+
+.btn-remove-icon {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.btn-remove-icon:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+/* 空状态 */
+.empty-state-box {
+  padding: 32px 16px;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px dashed #e2e8f0;
+}
+.empty-icon {
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+.empty-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #475569;
+}
+.empty-sub {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* 进度条 */
+.running-progress-card {
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+}
+.running-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #15803d;
+  margin-bottom: 6px;
+}
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: #dcfce7;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-bar-inner {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.hot-bar {
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+}
+.all-bar {
+  background: linear-gradient(90deg, #10b981, #059669);
 }
 
-.modal-footer-secondary,
-.modal-footer-primary {
+/* Tab 2 全网普查极简定时行 */
+.count-tag.green-tag {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.clean-time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.time-row-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.time-pills-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+.time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #ffffff;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-weight: 700;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+.btn-time-remove {
+  border: none;
+  background: transparent;
+  color: #059669;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.time-add-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.input-time-picker {
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+.btn-time-add {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-full-patrol-trigger {
+  width: 100%;
+  height: 40px;
+  border: none;
+  background: linear-gradient(135deg, #059669, #047857);
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 800;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+  transition: all 0.2s;
+}
+.btn-full-patrol-trigger:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+  transform: translateY(-1px);
+}
+.btn-full-patrol-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 底部操作栏 (精炼对齐) */
+.modal-footer {
+  padding: 12px 18px;
+  border-top: 1px solid #f1f5f9;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer-links-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.link-btn.text-danger { color: #ef4444; }
+.link-btn.text-danger:hover { text-decoration: underline; }
+.link-btn.text-primary { color: #0284c7; }
+.link-btn.text-primary:hover { text-decoration: underline; }
+
+.divider {
+  color: #cbd5e1;
+  font-size: 0.7rem;
+}
+
+.footer-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-trigger-action {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-trigger-action:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.btn-save-primary {
+  height: 34px;
+  padding: 0 18px;
+  border: none;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-save-primary:hover {
+  background: #0369a1;
 }
 
 @keyframes modalPop {
@@ -974,7 +1095,7 @@ function resetDefault() {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* 移动端专属响应式 Bottom Sheet 与触控优化 */
+/* 移动端专属适配 (Bottom Sheet) */
 @media (max-width: 768px) {
   .modal-overlay {
     align-items: flex-end !important;
@@ -986,6 +1107,7 @@ function resetDefault() {
     max-width: 100% !important;
     max-height: 88vh !important;
     border-radius: 20px 20px 0 0 !important;
+    border-bottom: none;
     animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
@@ -995,97 +1117,67 @@ function resetDefault() {
 
   .modal-body {
     padding: 12px 14px !important;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
-  .patrol-tab-bar {
-    padding: 6px 14px 0;
-    gap: 4px;
+  .modal-tabs-wrapper {
+    padding: 8px 14px 0;
   }
 
-  .patrol-tab-item {
-    padding: 6px 8px;
-    font-size: 0.74rem;
+  .add-route-strip {
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .add-route-inputs-flow {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .add-route-selects-pair {
+  .city-pickers-row {
     width: 100%;
     justify-content: space-between;
   }
 
-  .custom-select-native {
+  .select-clean {
     flex: 1;
-    height: 36px;
-    font-size: 0.85rem !important;
+    height: 34px;
   }
 
-  .route-remark-input {
-    width: 100% !important;
-    min-width: unset !important;
-    height: 36px;
-  }
-
-  .btn-add-monitor {
+  .input-remark-clean {
     width: 100%;
-    height: 36px;
-    justify-content: center;
-    font-size: 0.85rem !important;
+    min-width: 100%;
+    height: 34px;
   }
 
-  .route-table-wrapper {
+  .btn-add-action {
+    width: 100%;
+    height: 34px;
+  }
+
+  .route-cards-list {
     max-height: 220px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .route-table {
-    min-width: 440px;
   }
 
   .modal-footer {
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     flex-direction: column-reverse;
     gap: 10px;
-    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
   }
 
-  .modal-footer-primary {
+  .footer-actions-group {
     width: 100%;
-    display: flex;
     gap: 8px;
   }
 
-  .modal-footer-primary .btn-glass {
+  .btn-trigger-action {
     flex: 1;
     height: 38px;
-    justify-content: center;
   }
 
-  .modal-footer-primary .btn-primary {
-    flex: 2;
+  .btn-save-primary {
+    flex: 1.4;
     height: 38px;
-    justify-content: center;
-    font-size: 0.85rem !important;
+    font-size: 0.86rem;
   }
 
-  .modal-footer-secondary {
+  .footer-links-group {
     width: 100%;
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .modal-footer-secondary .btn-glass {
-    flex: 1;
     justify-content: center;
-    font-size: 0.72rem !important;
-    padding: 6px 4px;
   }
 }
 
