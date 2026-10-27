@@ -1,4 +1,4 @@
-name: Build macOS DMG (Apple Silicon M-Series)
+name: Multi-Platform Build (Windows EXE & macOS Apple Silicon DMG)
 
 on:
   workflow_dispatch:
@@ -11,6 +11,7 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'app_desktop.py'
+      - 'build_exe.py'
       - 'build_mac.py'
       - 'requirements.txt'
       - '.github/workflows/build.yml'
@@ -20,8 +21,7 @@ permissions:
 
 jobs:
   build-macos-arm64:
-    name: Build macOS DMG (Apple Silicon M1/M2/M3)
-    # GitHub Actions 官方由 Apple Silicon (M-series, ARM64) 驱动的 macOS 运行环境
+    name: Build macOS DMG (Apple Silicon M-Series)
     runs-on: macos-14
     steps:
       - name: Checkout Code
@@ -49,7 +49,7 @@ jobs:
           pip install -r requirements.txt
           pip install pyobjc-framework-WebKit
 
-      - name: Build macOS Apple Silicon .app and .dmg
+      - name: Build macOS Apple Silicon DMG
         run: |
           python build_mac.py
 
@@ -60,22 +60,63 @@ jobs:
           path: dist/*.dmg
           if-no-files-found: error
 
+  build-windows:
+    name: Build Windows EXE (Slim & Instant Splash)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pythonnet
+
+      - name: Build Windows EXE
+        run: |
+          python build_exe.py
+
+      - name: Upload Windows EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoongAirHelper-Windows-EXE
+          path: dist/*.exe
+          if-no-files-found: error
+
   release:
-    name: Publish GitHub Release (macOS DMG)
-    needs: [build-macos-arm64]
+    name: Publish GitHub Release (Multi-Platform)
+    needs: [build-macos-arm64, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Download DMG Artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: LoongAirHelper-macOS-AppleSilicon-DMG
           path: release_assets
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release_assets/*.dmg
+          files: |
+            release_assets/LoongAirHelper-Windows-EXE/*.exe
+            release_assets/LoongAirHelper-macOS-AppleSilicon-DMG/*.dmg
           draft: false
           prerelease: false
           generate_release_notes: true
