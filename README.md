@@ -48,15 +48,61 @@
 
 ---
 
-## ⚡ 极速上手：下载 Release 绿色客户端 (普通用户强烈推荐)
+## 🐳 Docker 一键部署（NAS / 私有云 24h 自动巡检推荐）
+
+> 💡 **无需安装 Python / Node.js，无需克隆代码，官方全架构镜像秒级启动！**  
+> 前后端同处于单个极轻量一体化镜像中（体积仅约 100MB），内存占用仅 ~40MB，支持 x86_64 与 ARM64（群晖/树莓派/Apple Silicon/VPS）。
+
+### 方式 A：Docker Compose 一键启动（最推荐 ⭐⭐⭐⭐⭐）
+
+在服务器任意目录新建 `docker-compose.yml`：
+
+```yaml
+version: '3.8'
+
+services:
+  clairline:
+    image: ghcr.io/eureka-wu/clairline:latest
+    container_name: clairline
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/backend/data  # 挂载数据卷，持久化个人凭证、放票日历与巡检航线
+    environment:
+      - TZ=Asia/Shanghai
+```
+
+后台启动容器：
+```bash
+docker compose up -d
+```
+启动后在手机/电脑浏览器直接访问 `http://服务器IP:3000` 即可！
+
+### 方式 B：单行 Docker 运行命令
+```bash
+docker run -d \
+  --name clairline \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v $(pwd)/data:/app/backend/data \
+  -e TZ=Asia/Shanghai \
+  ghcr.io/eureka-wu/clairline:latest
+```
+
+> 📱 **手机端 App 体验**：在手机浏览器（Safari / Chrome / 微信）打开 `http://服务器IP:3000`，点击浏览器菜单「**添加到主屏幕**」，即刻拥有全屏独立 App 体验！
+
+---
+
+## ⚡ 极速上手：下载 Release 绿色客户端 (桌面用户强烈推荐)
 
 > **零环境依赖！无需安装 Python、无需配置 Node.js/npm，双击即开即用！**
 
-### 📥 1. 下载预编译单文件程序
+### 📥 1. 下载预编译客户端
 
-前往 GitHub Releases 官方发布页，下载最新版本的 Windows 单文件客户端：
+前往 GitHub Releases 官方发布页，下载最新版本的客户端：
 
-👉 **[下载最新发布版 (LoongAirHelper-v2.0.0.exe)](https://github.com/eureka-wu/clairline/releases/tag/v2.0.0)**
+👉 **[下载最新发布版 (LoongAirHelper-v2.1.0.exe / LoongAirHelper-v2.1.0.dmg)](https://github.com/eureka-wu/clairline/releases/tag/v2.1.0)**
 
 - **支持系统**：**Windows 10 / Windows 11 (64位)**；
 - **渲染内核**：依赖系统内置的 **Microsoft Edge WebView2**（Win 11 与绝大多数 Win 10 已出厂自带，无需额外安装）；

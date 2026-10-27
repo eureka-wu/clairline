@@ -12,7 +12,7 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = ROOT_DIR / "frontend"
 BACKEND_DIR = ROOT_DIR / "backend"
 

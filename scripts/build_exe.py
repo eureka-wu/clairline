@@ -21,7 +21,8 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
+ASSETS_DIR = ROOT_DIR / "assets"
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 ROUTES_SEED = ROOT_DIR / "backend" / "data" / "routes_seed.json"
 VERSION = "v2.1.0"
@@ -52,7 +53,7 @@ def build():
         print("[+] 航网直飞种子数据已就绪")
 
     # 3. 构造 PyInstaller 命令行 (默认生成英文名 LoongAirHelper-v2.1.0.exe，完美兼容 GitHub Releases)
-    icon_path = ROOT_DIR / "app_icon.ico"
+    icon_path = ASSETS_DIR / "app_icon.ico"
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
@@ -79,7 +80,7 @@ def build():
         f"--add-data={ROOT_DIR / 'backend' / 'server.py'};.",
     ]
 
-    splash_path = ROOT_DIR / "splash.png"
+    splash_path = ASSETS_DIR / "splash.png"
     if splash_path.exists():
         cmd.append(f"--splash={splash_path}")
 

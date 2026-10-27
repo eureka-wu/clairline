@@ -15,7 +15,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
+ASSETS_DIR = ROOT_DIR / "assets"
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 ROUTES_SEED = ROOT_DIR / "backend" / "data" / "routes_seed.json"
 APP_NAME = "LoongAirHelper"
@@ -23,8 +24,8 @@ VERSION = "v2.1.0"
 
 def generate_mac_icns():
     """将 app_icon.png 转换为 macOS 原生高清 .icns 图标"""
-    png_path = ROOT_DIR / "app_icon.png"
-    icns_path = ROOT_DIR / "app_icon.icns"
+    png_path = ASSETS_DIR / "app_icon.png"
+    icns_path = ASSETS_DIR / "app_icon.icns"
     if icns_path.exists():
         return icns_path
 
@@ -32,7 +33,7 @@ def generate_mac_icns():
         return None
 
     try:
-        iconset_dir = ROOT_DIR / "app.iconset"
+        iconset_dir = ASSETS_DIR / "app.iconset"
         iconset_dir.mkdir(exist_ok=True)
         sizes = [16, 32, 64, 128, 256, 512]
         for s in sizes:
@@ -45,7 +46,7 @@ def generate_mac_icns():
         return icns_path
     except Exception as ex:
         print(f"[*] 图标生成提示 (将使用默认 png): {ex}")
-        shutil.rmtree(ROOT_DIR / "app.iconset", ignore_errors=True)
+        shutil.rmtree(ASSETS_DIR / "app.iconset", ignore_errors=True)
         return png_path
 
 def build_mac():

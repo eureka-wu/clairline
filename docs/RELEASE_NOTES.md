@@ -36,4 +36,18 @@
 
 ---
 
+## 🐳 Docker 官方多架构镜像 (NAS / 24h 自动巡检)
+
+前后端一体化极轻量容器（仅 ~100MB），免环境配置、免拉取代码，直接运行：
+
+```bash
+docker run -d \
+  --name clairline \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v ./data:/app/backend/data \
+  -e TZ=Asia/Shanghai \
+  ghcr.io/eureka-wu/clairline:latest
+```
+
 > 💡 **提示**：Web 网页端已全量支持 PWA 与手机浏览器响应式访问，建议在移动设备上“添加到主屏幕”获得类原生 App 体验。
