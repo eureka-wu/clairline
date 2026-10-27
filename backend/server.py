@@ -91,7 +91,7 @@ def reset_user_auth() -> dict:
 db.init_db()
 
 PORT = 3000
-APP_VERSION = "v2.0.0"
+APP_VERSION = "v2.1.0"
 GITHUB_REPO = "eureka-wu/clairline"
 client = SecCardClient()
 scheduler = MonitorScheduler(client)

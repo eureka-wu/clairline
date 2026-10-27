@@ -24,10 +24,11 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 ROUTES_SEED = ROOT_DIR / "backend" / "data" / "routes_seed.json"
+VERSION = "v2.1.0"
 
 def build():
     print("=" * 65)
-    print("[*] 开始构建 长龙航空畅飞助手 (Windows 绿色单文件 Exe)")
+    print(f"[*] 开始构建 长龙航空畅飞助手 {VERSION} (Windows 绿色单文件 Exe)")
     print("[*] GitHub: https://github.com/eureka-wu/clairline")
     print("=" * 65)
 
@@ -50,7 +51,7 @@ def build():
     else:
         print("[+] 航网直飞种子数据已就绪")
 
-    # 3. 构造 PyInstaller 命令行 (默认生成英文名 LoongAirHelper-v2.0.0.exe，完美兼容 GitHub Releases)
+    # 3. 构造 PyInstaller 命令行 (默认生成英文名 LoongAirHelper-v2.1.0.exe，完美兼容 GitHub Releases)
     icon_path = ROOT_DIR / "app_icon.ico"
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -58,7 +59,7 @@ def build():
         "--clean",
         "--onefile",
         "--windowed",
-        "--name=LoongAirHelper-v2.0.0",
+        f"--name=LoongAirHelper-{VERSION}",
         f"--icon={icon_path}",
         "--paths=backend",
         "--paths=.",
@@ -119,7 +120,7 @@ def build():
     res = subprocess.run(cmd, cwd=str(ROOT_DIR))
     if res.returncode == 0:
         dist_dir = ROOT_DIR / "dist"
-        v2_exe = dist_dir / "LoongAirHelper-v2.0.0.exe"
+        v2_exe = dist_dir / f"LoongAirHelper-{VERSION}.exe"
         en_exe = dist_dir / "LoongAirHelper.exe"
 
         # 在 dist 目录下复制一份无版本号别名文件，方便调用

@@ -137,9 +137,9 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: "长龙航空 · 畅飞智能助手 ${{ steps.vars.outputs.tag }}"
+          body_path: RELEASE_NOTES.md
           files: |
             release_assets/LoongAirHelper-Windows-EXE/*.exe
             release_assets/LoongAirHelper-macOS-AppleSilicon-DMG/*.dmg
           draft: false
           prerelease: false
-          generate_release_notes: true

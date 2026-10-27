@@ -12,6 +12,6 @@ export async function fetchSystemInfo() {
     const res = await fetch('/api/system/info');
     return await res.json();
   } catch (e) {
-    return { ok: false, version: 'v2.0.0' };
+    return { ok: false, version: 'v2.1.0' };
   }
 }
