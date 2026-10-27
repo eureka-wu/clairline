@@ -429,9 +429,7 @@ async function runCheckUpdate(manual = false) {
         if (!manual && ignored === res.latest_version) {
           return;
         }
-        if (manual) {
-          updateModalVisible.value = true;
-        }
+        updateModalVisible.value = true;
       } else {
         if (manual) {
           updateModalVisible.value = true;
