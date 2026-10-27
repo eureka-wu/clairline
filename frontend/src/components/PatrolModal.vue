@@ -70,16 +70,50 @@
             </div>
           </div>
 
-          <!-- 添加新航线录入框 (极简通透一行) -->
+          <!-- 添加新航线录入框 (使用与主页相同的现代 el-select 组件) -->
           <div class="add-route-strip">
             <div class="city-pickers-row">
-              <select v-model="newFrom" class="select-clean">
-                <option v-for="c in availableOrigins" :key="c" :value="c">{{ c }}</option>
-              </select>
+              <el-select
+                v-model="newFrom"
+                filterable
+                :filter-method="filterOriginMethod"
+                placeholder="出发地"
+                class="custom-el-select modal-city-select"
+              >
+                <el-option
+                  v-for="c in filteredOrigins"
+                  :key="c"
+                  :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
+                  :value="c"
+                >
+                  <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <span style="font-weight:700;">{{ c }}</span>
+                    <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province || '' }}</span>
+                  </div>
+                </el-option>
+              </el-select>
+
               <span class="route-arrow-icon">➔</span>
-              <select v-model="newTo" class="select-clean">
-                <option v-for="c in availableDestsForNew" :key="c" :value="c">{{ c }}</option>
-              </select>
+
+              <el-select
+                v-model="newTo"
+                filterable
+                :filter-method="filterDestMethod"
+                placeholder="目的地"
+                class="custom-el-select modal-city-select"
+              >
+                <el-option
+                  v-for="c in filteredDests"
+                  :key="c"
+                  :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
+                  :value="c"
+                >
+                  <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <span style="font-weight:700;">{{ c }}</span>
+                    <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province || '' }}</span>
+                  </div>
+                </el-option>
+              </el-select>
             </div>
             <input 
               type="text" 
@@ -108,7 +142,7 @@
               <span class="route-index">{{ String(idx + 1).padStart(2, '0') }}</span>
               <div class="route-cities">
                 <span class="city-name">{{ r.from }}</span>
-                <span class="plane-sym">✈</span>
+                <span class="plane-sym">➔</span>
                 <span class="city-name">{{ r.to }}</span>
               </div>
               <input 
@@ -129,9 +163,8 @@
             </div>
 
             <div v-if="routes.length === 0" class="empty-state-box">
-              <div class="empty-icon">🛫</div>
               <div class="empty-title">暂未添加重点监控航线</div>
-              <div class="empty-sub">可在上方选择城市添加，或点击下方导入示例</div>
+              <div class="empty-sub">可在上方选择城市并点击添加</div>
             </div>
           </div>
 
@@ -147,15 +180,11 @@
           </div>
         </div>
 
-        <!-- ==================== TAB 2：全网普查 (极简紧致) ==================== -->
+        <!-- ==================== TAB 2：全网普查 (极简一体化) ==================== -->
         <div v-show="activeTab === 'all'" class="tab-content">
-          <!-- 顶部轻量配置条 (与 Tab 1 严格统一) -->
-          <div class="patrol-config-bar">
-            <div class="config-bar-left">
-              <span class="count-tag green-tag">全国直飞 397 条</span>
-            </div>
-            
-            <div class="config-bar-right">
+          <!-- 全网普查设置一体化卡片 -->
+          <div class="patrol-unified-card">
+            <div class="unified-card-row">
               <label class="toggle-control-label">
                 <input 
                   type="checkbox" 
@@ -163,41 +192,30 @@
                   @change="onSwitchChange('all_enabled', $event.target.checked)"
                   class="custom-chk green-chk"
                 >
-                <span>每日定时自动普查</span>
+                <span class="bold-label">每日定时自动普查</span>
               </label>
+              <span class="count-tag green-tag">全网 397 航线</span>
             </div>
-          </div>
 
-          <!-- 定时时间点微药丸行 -->
-          <div class="clean-time-row">
-            <span class="time-row-label">执行时间点:</span>
-            <div class="time-pills-row">
-              <span 
-                v-for="(t, idx) in patrolTimes" 
-                :key="idx"
-                class="time-badge"
-              >
-                <span>{{ t }}</span>
-                <button type="button" class="btn-time-remove" @click="removeTime(idx)">&times;</button>
-              </span>
+            <div class="unified-card-row time-row-sub">
+              <span class="time-label-clean">执行时间:</span>
+              <div class="time-pills-row">
+                <span 
+                  v-for="(t, idx) in patrolTimes" 
+                  :key="idx"
+                  class="time-badge"
+                >
+                  <span>{{ t }}</span>
+                  <button type="button" class="btn-time-remove" @click="removeTime(idx)">&times;</button>
+                </span>
 
-              <div v-if="patrolTimes.length < 3" class="time-add-wrap">
-                <input type="time" v-model="newTime" class="input-time-picker">
-                <button type="button" class="btn-time-add" @click="addTime">+ 添加</button>
+                <div v-if="patrolTimes.length < 3" class="time-add-wrap">
+                  <input type="time" v-model="newTime" class="input-time-picker">
+                  <button type="button" class="btn-time-add" @click="addTime">+ 添加</button>
+                </div>
               </div>
             </div>
           </div>
-
-          <!-- 全网普查启动按钮 -->
-          <button 
-            type="button" 
-            class="btn-full-patrol-trigger"
-            :disabled="patrolState.running"
-            @click="triggerManual('all')"
-          >
-            <span v-html="ICONS.rocket"></span>
-            <span>{{ patrolState.running && patrolState.mode === 'all' ? '正在全网大普查中...' : '立即开始全网大普查 (397条)' }}</span>
-          </button>
 
           <!-- 实时进度条 -->
           <div v-if="patrolState.mode === 'all' && (patrolState.running || patrolState.percent > 0)" class="running-progress-card">
@@ -213,19 +231,10 @@
 
       </div>
 
-      <!-- 模态框底部操作栏 (精简低噪，Tab 严格隔离) -->
+      <!-- 模态框底部操作栏 (精简纯净，双Tab对称统一) -->
       <div class="modal-footer">
-        <!-- 仅在重点监控 Tab 显示清空与导入 -->
-        <div v-if="activeTab === 'hot'" class="footer-links-group">
-          <button type="button" class="link-btn text-danger" @click="clearAllRoutes">清空</button>
-          <span class="divider">·</span>
-          <button type="button" class="link-btn text-primary" @click="importExampleRoutes">导入示例(30条)</button>
-        </div>
-        <div v-else class="footer-links-group">
-          <span style="font-size:0.75rem; color:#94a3b8;">多线程并发遍历 · 覆盖数据库放票日历</span>
-        </div>
-
         <div class="footer-actions-group">
+          <!-- Tab 1 重点监控立即巡检 -->
           <button 
             v-if="activeTab === 'hot'"
             type="button" 
@@ -235,6 +244,18 @@
           >
             <span>{{ patrolState.running && patrolState.mode === 'hot' ? '监控中...' : `▶ 立即巡检 (${routes.length})` }}</span>
           </button>
+
+          <!-- Tab 2 全网大普查立即触发 -->
+          <button 
+            v-else
+            type="button" 
+            class="btn-trigger-action all-trigger-btn"
+            :disabled="patrolState.running"
+            @click="triggerManual('all')"
+          >
+            <span>{{ patrolState.running && patrolState.mode === 'all' ? '普查中...' : '▶ 立即全网普查 (397条)' }}</span>
+          </button>
+
           <button type="button" class="btn-save-primary" @click="saveAll">
             保存配置
           </button>
@@ -248,6 +269,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { ICONS } from '../data/icons.js';
 import { DIRECT_MAP } from '../data/routes-network.js';
+import { CITY_METADATA } from '../data/city-meta.js';
 import { 
   fetchPatrolHotRoutes,
   savePatrolHotRoutes,
@@ -279,8 +301,48 @@ const newTo = ref('阿勒泰');
 const newRouteName = ref('');
 const newTime = ref('12:00');
 
-const availableOrigins = computed(() => Object.keys(DIRECT_MAP).filter(c => (DIRECT_MAP[c] || []).length > 0));
+// 拼音/文字搜索状态
+const originQuery = ref('');
+const destQuery = ref('');
+
+function filterOriginMethod(query) {
+  originQuery.value = query;
+}
+
+function filterDestMethod(query) {
+  destQuery.value = query;
+}
+
+// 可出发城市 (按直达航线数量由多到少排序，常用城市居前)
+const availableOrigins = computed(() => {
+  return Object.keys(CITY_METADATA)
+    .filter(c => (DIRECT_MAP[c] || []).length > 0)
+    .sort((a, b) => (DIRECT_MAP[b] || []).length - (DIRECT_MAP[a] || []).length);
+});
+
+const filteredOrigins = computed(() => {
+  const q = originQuery.value.trim().toLowerCase();
+  if (!q) return availableOrigins.value;
+  return availableOrigins.value.filter(c => {
+    const meta = CITY_METADATA[c] || {};
+    const pinyin = meta.pinyin || '';
+    const prov = meta.province || '';
+    return c.includes(q) || pinyin.toLowerCase().includes(q) || prov.includes(q) || (meta.code || '').toLowerCase().includes(q);
+  });
+});
+
 const availableDestsForNew = computed(() => DIRECT_MAP[newFrom.value] || []);
+
+const filteredDests = computed(() => {
+  const q = destQuery.value.trim().toLowerCase();
+  if (!q) return availableDestsForNew.value;
+  return availableDestsForNew.value.filter(c => {
+    const meta = CITY_METADATA[c] || {};
+    const pinyin = meta.pinyin || '';
+    const prov = meta.province || '';
+    return c.includes(q) || pinyin.toLowerCase().includes(q) || prov.includes(q) || (meta.code || '').toLowerCase().includes(q);
+  });
+});
 
 const currentRouteDisplay = computed(() => {
   const cr = props.patrolState.current_route;
@@ -718,21 +780,23 @@ async function saveAll() {
   gap: 6px;
 }
 
-.select-clean {
-  height: 32px;
-  padding: 0 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #0f172a;
-  background: #ffffff;
-  outline: none;
-  cursor: pointer;
+.modal-city-select {
+  width: 152px;
+  flex-shrink: 0;
 }
 
-.select-clean:focus {
-  border-color: #0284c7;
+:deep(.modal-city-select .el-select__wrapper) {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 8px !important;
+  font-size: 0.82rem !important;
+  font-weight: 700;
+  border-radius: 6px !important;
+  box-shadow: 0 0 0 1px #cbd5e1 inset !important;
+}
+
+:deep(.modal-city-select .el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1.5px #0284c7 inset !important;
 }
 
 .route-arrow-icon {
@@ -923,22 +987,42 @@ async function saveAll() {
   color: #047857;
 }
 
-.clean-time-row {
+/* 全网普查设置一体化卡片 */
+.patrol-unified-card {
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.unified-card-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  gap: 8px;
+}
+
+.unified-card-row.time-row-sub {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
   flex-wrap: wrap;
 }
 
-.time-row-label {
-  font-size: 0.78rem;
+.bold-label {
+  font-size: 0.84rem;
   font-weight: 700;
-  color: #334155;
+  color: #0f172a;
+}
+
+.time-label-clean {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  flex-shrink: 0;
 }
 
 .time-pills-row {
@@ -992,64 +1076,14 @@ async function saveAll() {
   cursor: pointer;
 }
 
-.btn-full-patrol-trigger {
-  width: 100%;
-  height: 40px;
-  border: none;
-  background: linear-gradient(135deg, #059669, #047857);
-  color: #ffffff;
-  font-size: 0.86rem;
-  font-weight: 800;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
-  transition: all 0.2s;
-}
-.btn-full-patrol-trigger:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
-  transform: translateY(-1px);
-}
-.btn-full-patrol-trigger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* 底部操作栏 (精炼对齐) */
+/* 底部操作栏 (精炼纯净) */
 .modal-footer {
   padding: 12px 18px;
   border-top: 1px solid #f1f5f9;
   background: #ffffff;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.footer-links-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.link-btn {
-  border: none;
-  background: transparent;
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-.link-btn.text-danger { color: #ef4444; }
-.link-btn.text-danger:hover { text-decoration: underline; }
-.link-btn.text-primary { color: #0284c7; }
-.link-btn.text-primary:hover { text-decoration: underline; }
-
-.divider {
-  color: #cbd5e1;
-  font-size: 0.7rem;
+  justify-content: flex-end;
 }
 
 .footer-actions-group {
@@ -1057,6 +1091,16 @@ async function saveAll() {
   align-items: center;
   gap: 8px;
 }
+
+.all-trigger-btn {
+  background: #f0fdf4 !important;
+  border: 1px solid #86efac !important;
+  color: #15803d !important;
+}
+.all-trigger-btn:hover:not(:disabled) {
+  background: #dcfce7 !important;
+}
+
 
 .btn-trigger-action {
   height: 34px;
@@ -1133,9 +1177,16 @@ async function saveAll() {
     justify-content: space-between;
   }
 
-  .select-clean {
-    flex: 1;
-    height: 34px;
+  .modal-city-select {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto !important;
+  }
+
+  :deep(.modal-city-select .el-select__wrapper) {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 6px !important;
   }
 
   .input-remark-clean {
@@ -1154,9 +1205,7 @@ async function saveAll() {
   }
 
   .modal-footer {
-    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
-    flex-direction: column-reverse;
-    gap: 10px;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
   }
 
   .footer-actions-group {
@@ -1167,17 +1216,13 @@ async function saveAll() {
   .btn-trigger-action {
     flex: 1;
     height: 38px;
+    font-size: 0.82rem;
   }
 
   .btn-save-primary {
-    flex: 1.4;
+    flex: 1;
     height: 38px;
-    font-size: 0.86rem;
-  }
-
-  .footer-links-group {
-    width: 100%;
-    justify-content: center;
+    font-size: 0.84rem;
   }
 }
 
