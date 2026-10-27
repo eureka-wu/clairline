@@ -42,8 +42,15 @@
             @refresh-calendar="handleRefreshCalendar"
           />
 
-          <!-- 空状态 -->
-          <div v-if="displayedRoutes.length === 0" style="text-align:center; padding:48px 20px; background:#fff; border-radius:12px; border:1px solid #e2e8f0;">
+          <!-- 首屏加载中状态 (防闪烁骨架卡片) -->
+          <div v-if="isInitialLoading && displayedRoutes.length === 0" class="routes-loading-card">
+            <div class="loading-spin-circle"></div>
+            <div class="loading-main-title">正在同步全国直飞拓扑与最新放票大盘...</div>
+            <div class="loading-sub-desc">毫秒级秒开本地数据库，请稍候</div>
+          </div>
+
+          <!-- 真实空状态 (仅在数据加载完成且筛选确实无结果时显示) -->
+          <div v-else-if="!isInitialLoading && displayedRoutes.length === 0" style="text-align:center; padding:48px 20px; background:#fff; border-radius:12px; border:1px solid #e2e8f0;">
             <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary); margin-bottom:6px;">未匹配到符合条件的直飞航线</div>
             <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">可尝试关闭“仅看有票航线”或切换出发城市</div>
             <button 
@@ -56,8 +63,6 @@
               <span v-html="ICONS.phone" style="display:inline-flex;"></span>
               <span>手机验证码登录长龙会员</span>
             </button>
-
-
           </div>
         </div>
       </section>
@@ -246,7 +251,20 @@ const destination = ref('全部');
 const onlyAvailable = ref(true);
 const sortBy = ref('recent-first');
 
-const availableRoutes = ref([]);
+// 本地瞬时首屏缓存 (实现 F5 刷新 0 毫秒秒开，彻底杜绝闪烁“未登录”与“有票(0)”)
+function getInitialRoutes() {
+  try {
+    const c = localStorage.getItem('clairline_routes_cache');
+    if (c) {
+      const parsed = JSON.parse(c);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+const availableRoutes = ref(getInitialRoutes());
+const isInitialLoading = ref(availableRoutes.value.length === 0);
 const seatCache = ref({});
 const summary = ref({});
 const patrolCount = ref(30);
@@ -411,8 +429,8 @@ if (typeof window !== 'undefined') {
 
 const updateInfo = ref({
   has_update: false,
-  current_version: 'v2.0.0',
-  latest_version: 'v2.0.0',
+  current_version: 'v2.1.1',
+  latest_version: 'v2.1.1',
   release_name: '',
   release_notes: '',
   page_url: 'https://github.com/eureka-wu/clairline/releases',
@@ -470,14 +488,25 @@ function handleIgnoreVersion(ver) {
 }
 
 
-const authStatus = ref({
-  is_logged_in: false,
-  user_name: '长龙会员',
-  mobile: '',
-  member_level: '普通会员',
-  cert_installed: false,
-  update_time: ''
-});
+function getInitialAuth() {
+  try {
+    const c = localStorage.getItem('clairline_auth_cache');
+    if (c) {
+      const parsed = JSON.parse(c);
+      if (parsed && parsed.is_logged_in) return parsed;
+    }
+  } catch (e) {}
+  return {
+    is_logged_in: false,
+    user_name: '长龙会员',
+    mobile: '',
+    member_level: '普通会员',
+    cert_installed: false,
+    update_time: ''
+  };
+}
+
+const authStatus = ref(getInitialAuth());
 
 async function refreshAuthStatus(directData) {
   if (directData && directData.is_logged_in) {
@@ -488,6 +517,13 @@ async function refreshAuthStatus(directData) {
     const res = await fetchAuthStatus();
     if (res && res.ok) {
       authStatus.value = res;
+      try {
+        if (res.is_logged_in) {
+          localStorage.setItem('clairline_auth_cache', JSON.stringify(res));
+        } else {
+          localStorage.removeItem('clairline_auth_cache');
+        }
+      } catch (e) {}
     }
   } catch (e) {}
 }
@@ -701,6 +737,9 @@ async function initData() {
     const data = await fetchAvailableRoutes();
     if (data && data.routes) {
       availableRoutes.value = data.routes;
+      try {
+        localStorage.setItem('clairline_routes_cache', JSON.stringify(data.routes));
+      } catch (e) {}
       summary.value = {
         totalAvailableRoutes: data.totalAvailableRoutes,
         totalDatePoints: data.totalDatePoints
@@ -924,10 +963,16 @@ function openDrawer(route) {
 }
 
 onMounted(async () => {
-  await initData();
-  checkPatrolStatus();
-  await refreshAuthStatus();
-  runCheckUpdate(false);
+  try {
+    await Promise.all([
+      initData(),
+      refreshAuthStatus(),
+      checkPatrolStatus(),
+      runCheckUpdate(false)
+    ]);
+  } finally {
+    isInitialLoading.value = false;
+  }
 
   // 核心自动化机制：已登录但本地有票航线少于 50 条 (说明全网 397 条航线日历尚未普查全)，全自动调起全网普查！
   if (authStatus.value?.is_logged_in) {
@@ -1111,5 +1156,41 @@ onMounted(async () => {
 @keyframes radar-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+.routes-loading-card {
+  text-align: center;
+  padding: 56px 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.loading-spin-circle {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #0284c7;
+  border-radius: 50%;
+  animation: spinLoading 0.8s linear infinite;
+}
+
+@keyframes spinLoading {
+  to { transform: rotate(360deg); }
+}
+
+.loading-main-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.loading-sub-desc {
+  font-size: 0.82rem;
+  color: #64748b;
 }
 </style>
