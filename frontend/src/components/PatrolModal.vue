@@ -75,25 +75,26 @@
 
           <!-- 添加新航线行 (置顶快捷录入) -->
           <div class="add-route-card">
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <select v-model="newFrom" class="custom-select-native" style="padding:4px 8px; font-size:0.8rem;">
-                <option v-for="c in availableOrigins" :key="c" :value="c">{{ c }}</option>
-              </select>
-              <span style="color:#94a3b8; font-weight:bold;">➔</span>
-              <select v-model="newTo" class="custom-select-native" style="padding:4px 8px; font-size:0.8rem;">
-                <option v-for="c in availableDestsForNew" :key="c" :value="c">{{ c }}</option>
-              </select>
+            <div class="add-route-inputs-flow">
+              <div class="add-route-selects-pair">
+                <select v-model="newFrom" class="custom-select-native" style="padding:4px 8px; font-size:0.8rem;">
+                  <option v-for="c in availableOrigins" :key="c" :value="c">{{ c }}</option>
+                </select>
+                <span style="color:#94a3b8; font-weight:bold;">➔</span>
+                <select v-model="newTo" class="custom-select-native" style="padding:4px 8px; font-size:0.8rem;">
+                  <option v-for="c in availableDestsForNew" :key="c" :value="c">{{ c }}</option>
+                </select>
+              </div>
               <input 
                 type="text" 
                 v-model="newRouteName" 
-                placeholder="航线别名/备注 (选填，如我的老家/度假专线)"
+                placeholder="航线别名/备注 (选填)"
                 class="route-remark-input"
                 @keydown.enter="addRoute"
               >
               <button 
                 type="button" 
-                class="btn-primary" 
-                style="padding:5px 14px; font-size:0.78rem; display:inline-flex; align-items:center; gap:4px;" 
+                class="btn-primary btn-add-monitor" 
                 :disabled="!newFrom || !newTo"
                 @click="addRoute"
               >
@@ -292,14 +293,14 @@
       </div>
 
       <!-- 模态框底部 -->
-      <div class="modal-footer" style="justify-content:space-between; align-items:center;">
-        <div style="display:flex; gap:8px;">
+      <div class="modal-footer">
+        <div class="modal-footer-secondary">
           <button type="button" class="btn-glass" style="font-size:0.75rem; color:#ef4444; border-color:#fecaca;" @click="clearAllRoutes">清空全部航线</button>
           <button type="button" class="btn-glass" style="font-size:0.75rem; color:#0284c7;" @click="importExampleRoutes">💡 导入示例 30 条</button>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div class="modal-footer-primary">
           <button type="button" class="btn-glass" style="font-size:0.78rem;" @click="$emit('close')">取消</button>
-          <button type="button" class="btn-primary" style="font-size:0.78rem;" @click="saveAll">保存配置</button>
+          <button type="button" class="btn-primary" style="font-size:0.78rem; font-weight:700;" @click="saveAll">保存配置</button>
         </div>
       </div>
     </div>
@@ -939,15 +940,157 @@ function resetDefault() {
   border-radius: 4px;
 }
 
+.add-route-inputs-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.add-route-selects-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .modal-footer {
   padding: 12px 20px;
   border-top: 1px solid var(--border-subtle);
   background: #f8fafc;
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-footer-secondary,
+.modal-footer-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @keyframes modalPop {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* 移动端专属响应式 Bottom Sheet 与触控优化 */
+@media (max-width: 768px) {
+  .modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  .modal-header {
+    padding: 12px 16px;
+  }
+
+  .modal-body {
+    padding: 12px 14px !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .patrol-tab-bar {
+    padding: 6px 14px 0;
+    gap: 4px;
+  }
+
+  .patrol-tab-item {
+    padding: 6px 8px;
+    font-size: 0.74rem;
+  }
+
+  .add-route-inputs-flow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .add-route-selects-pair {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .custom-select-native {
+    flex: 1;
+    height: 36px;
+    font-size: 0.85rem !important;
+  }
+
+  .route-remark-input {
+    width: 100% !important;
+    min-width: unset !important;
+    height: 36px;
+  }
+
+  .btn-add-monitor {
+    width: 100%;
+    height: 36px;
+    justify-content: center;
+    font-size: 0.85rem !important;
+  }
+
+  .route-table-wrapper {
+    max-height: 220px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .route-table {
+    min-width: 440px;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 10px;
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .modal-footer-primary {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+
+  .modal-footer-primary .btn-glass {
+    flex: 1;
+    height: 38px;
+    justify-content: center;
+  }
+
+  .modal-footer-primary .btn-primary {
+    flex: 2;
+    height: 38px;
+    justify-content: center;
+    font-size: 0.85rem !important;
+  }
+
+  .modal-footer-secondary {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .modal-footer-secondary .btn-glass {
+    flex: 1;
+    justify-content: center;
+    font-size: 0.72rem !important;
+    padding: 6px 4px;
+  }
+}
+
+@keyframes slideUpModal {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 </style>

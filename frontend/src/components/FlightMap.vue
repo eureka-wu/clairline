@@ -49,16 +49,15 @@
 
     <!-- 图例 Legend (纯净两档，单一色彩绝不重叠) -->
     <div class="map-legend-card">
-      <div style="font-weight:700; font-size:0.75rem; color:#94a3b8; margin-bottom:6px;">航网放票热度图例</div>
       <div class="legend-item">
         <span class="legend-color" style="background:#10b981; box-shadow:0 0 6px #10b981;"></span> 
-        近7天有票 / 20+天 (充裕可兑)
+        近7天有票 / 20+天 (充裕)
       </div>
       <div class="legend-item">
         <span class="legend-color" style="background:#64748b;"></span> 
-        可兑 1~9 天 (紧俏散票)
+        可兑 1~9 天 (散票)
       </div>
-      <div class="legend-item" style="margin-top:4px; font-size:0.7rem; color:#64748b;">
+      <div class="legend-item legend-item-hint" style="font-size:0.7rem; color:#64748b;">
         🖱️ 滚轮缩放 · 拖拽漫游 · 点击航线查详情
       </div>
     </div>
@@ -77,7 +76,7 @@
       </div>
     </div>
 
-    <!-- 原生响应式 SVG 航网矢量底图 -->
+    <!-- 原生响应式 SVG 航网矢量底图 (支持触摸手势拖动与双指缩放) -->
     <svg 
       ref="svgEl"
       class="china-flight-svg"
@@ -88,6 +87,9 @@
       @mousemove="handleMouseMove"
       @mouseup="handleMouseUp"
       @mouseleave="handleMouseUp"
+      @touchstart="handleTouchStart"
+      @touchmove.prevent="handleTouchMove"
+      @touchend="handleTouchEnd"
     >
 
 
@@ -192,15 +194,19 @@ const svgEl = ref(null);
 
 const hubCities = ['杭州', '银川', '长春', '宁波', '温州', '广州', '成都', '武汉', '哈尔滨', '西安', '郑州', '深圳', '北京', '重庆', '阿勒泰', '喀什', '西双版纳', '三亚'];
 
-// 视口 ViewBox 默认基准视口 (更聚焦于中国版图，占满大屏空间)
-const DEFAULT_VB = {
-  x: 25,
-  y: 15,
-  w: 950,
-  h: 740
-};
+// 视口 ViewBox 基准视口
+const DEFAULT_VB_DESKTOP = { x: 25, y: 15, w: 950, h: 740 };
+// 手机竖屏专用视角：聚焦核心通航区，左右与上下撑满竖屏视觉
+const DEFAULT_VB_MOBILE = { x: 130, y: 30, w: 780, h: 720 };
 
-const vb = reactive({ ...DEFAULT_VB });
+function getInitialViewBox() {
+  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+    return { ...DEFAULT_VB_MOBILE };
+  }
+  return { ...DEFAULT_VB_DESKTOP };
+}
+
+const vb = reactive(getInitialViewBox());
 
 // 经纬度微网格坐标列表
 const gridXList = [80, 170, 260, 350, 440, 530, 620, 710, 800, 890];
@@ -402,11 +408,77 @@ function handleMouseUp() {
   isDragging = false;
 }
 
+// ----------------------------- 移动端 Touch 触摸手势 (单指平移拖拽 + 双指自然缩放)
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartDistance = 0;
+let touchStartVb = { ...vb };
+
+function handleTouchStart(e) {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartVb = { ...vb };
+  } else if (e.touches.length === 2) {
+    isDragging = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchStartDistance = Math.hypot(dx, dy);
+    touchStartVb = { ...vb };
+  }
+}
+
+function handleTouchMove(e) {
+  if (!svgEl.value) return;
+  const rect = svgEl.value.getBoundingClientRect();
+  const scale = vb.w / rect.width;
+
+  if (e.touches.length === 1 && isDragging) {
+    const dx = e.touches[0].clientX - touchStartX;
+    const dy = e.touches[0].clientY - touchStartY;
+    vb.x = touchStartVb.x - dx * scale;
+    vb.y = touchStartVb.y - dy * scale;
+  } else if (e.touches.length === 2 && touchStartDistance > 0) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const currentDist = Math.hypot(dx, dy);
+    const pinchRatio = touchStartDistance / currentDist;
+
+    const newW = touchStartVb.w * pinchRatio;
+    const newH = touchStartVb.h * pinchRatio;
+    if (newW > 180 && newW < 2400) {
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const relX = (midX - rect.left) / rect.width;
+      const relY = (midY - rect.top) / rect.height;
+
+      vb.x = touchStartVb.x + (touchStartVb.w - newW) * relX;
+      vb.y = touchStartVb.y + (touchStartVb.h - newH) * relY;
+      vb.w = newW;
+      vb.h = newH;
+    }
+  }
+}
+
+function handleTouchEnd(e) {
+  if (e.touches.length === 0) {
+    isDragging = false;
+    touchStartDistance = 0;
+  } else if (e.touches.length === 1) {
+    isDragging = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartVb = { ...vb };
+  }
+}
+
 function resetMapZoom() {
-  vb.x = DEFAULT_VB.x;
-  vb.y = DEFAULT_VB.y;
-  vb.w = DEFAULT_VB.w;
-  vb.h = DEFAULT_VB.h;
+  const target = getInitialViewBox();
+  vb.x = target.x;
+  vb.y = target.y;
+  vb.w = target.w;
+  vb.h = target.h;
 }
 
 function handleCityClick(cityName) {
@@ -773,5 +845,71 @@ onUnmounted(() => {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   backdrop-filter: blur(6px);
+}
+
+@media (max-width: 768px) {
+  .map-explorer-wrapper {
+    height: calc(100vh - 60px) !important;
+    min-height: calc(100vh - 60px) !important;
+    border-radius: 0 !important;
+    margin: -10px -12px;
+  }
+
+  .map-floating-bar {
+    top: 10px;
+    left: 10px;
+    right: 56px;
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .custom-map-el-select {
+    width: auto !important;
+    flex: 1;
+    min-width: 0;
+  }
+
+  :deep(.custom-map-el-select .el-select__wrapper) {
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 0.8rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .btn-map-reset {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .btn-map-fullscreen {
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .map-legend-card {
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    right: 12px;
+    padding: 6px 10px;
+    font-size: 0.68rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: rgba(15, 23, 42, 0.92);
+  }
+
+  .legend-item {
+    margin-bottom: 0;
+  }
+
+  .legend-item-hint {
+    display: none !important;
+  }
 }
 </style>
