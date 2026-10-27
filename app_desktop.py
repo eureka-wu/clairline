@@ -101,12 +101,15 @@ def find_free_port(start_port: int = 3000, max_tries: int = 30) -> int:
     return start_port
 
 def show_fatal_error(msg: str):
-    """当发生严重致命异常时，弹出 Windows 原生错误对话框并落盘日志，绝不静默闪退"""
-    import ctypes
+    """当发生严重致命异常时，弹出系统错误对话框并落盘日志，绝不静默闪退"""
     boot_log(f"FATAL ERROR POPUP: {msg}")
     title = "长龙航空畅飞助手 - 运行异常"
     try:
-        ctypes.windll.user32.MessageBoxW(0, msg, title, 0x10)
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, msg, title, 0x10)
+        else:
+            print(f"[{title}] {msg}", file=sys.stderr)
     except Exception:
         pass
 
@@ -200,8 +203,12 @@ def main():
         )
         window.events.closed += on_closed
 
-        # 使用 Edge Chromium (WebView2) 引擎
-        webview.start(gui="edgechromium", debug=False)
+        # 跨平台自适应 Webview 引擎 (Windows 使用 Edge Chromium, macOS 使用原生 Cocoa WebKit)
+        gui_engine = "edgechromium" if sys.platform == "win32" else "cocoa"
+        try:
+            webview.start(gui=gui_engine, debug=False)
+        except Exception:
+            webview.start(debug=False)
     except Exception:
         import traceback
         err_msg = "长龙航空畅飞助手在启动时遭遇未知异常：\n\n" + traceback.format_exc()
