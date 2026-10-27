@@ -127,7 +127,7 @@ docker run -d \
 
 前往 GitHub Releases 官方发布页，下载最新版本的客户端：
 
-👉 **[下载最新发布版 (LoongAirHelper-v2.1.0.exe / LoongAirHelper-v2.1.0.dmg)](https://github.com/eureka-wu/clairline/releases/tag/v2.1.0)**
+👉 **[下载最新发布版 (LoongAirHelper-v2.1.1.exe / LoongAirHelper-v2.1.1.dmg)](https://github.com/eureka-wu/clairline/releases/tag/v2.1.1)**
 
 - **支持系统**：**Windows 10 / Windows 11 (64位)**；
 - **渲染内核**：依赖系统内置的 **Microsoft Edge WebView2**（Win 11 与绝大多数 Win 10 已出厂自带，无需额外安装）；

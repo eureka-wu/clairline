@@ -25,7 +25,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 ASSETS_DIR = ROOT_DIR / "assets"
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 ROUTES_SEED = ROOT_DIR / "backend" / "data" / "routes_seed.json"
-VERSION = "v2.1.0"
+VERSION = "v2.1.1"
 
 def build():
     print("=" * 65)
@@ -52,7 +52,7 @@ def build():
     else:
         print("[+] 航网直飞种子数据已就绪")
 
-    # 3. 构造 PyInstaller 命令行 (默认生成英文名 LoongAirHelper-v2.1.0.exe，完美兼容 GitHub Releases)
+    # 3. 构造 PyInstaller 命令行 (默认生成英文名 LoongAirHelper-v2.1.1.exe，完美兼容 GitHub Releases)
     icon_path = ASSETS_DIR / "app_icon.ico"
     cmd = [
         sys.executable, "-m", "PyInstaller",

@@ -35,7 +35,7 @@
 
 > 💡 **特别提醒（桌面端 .exe / .dmg 用户）**：  
 > **桌面客户端完全支持 MCP！**  
-> 当您双击打开 `LoongAirHelper-v2.1.0.exe`（Windows）或 `LoongAirHelper-v2.1.0.dmg`（macOS）后，客户端内部会自动拉起轻量级后台服务，并**默认在本地监听 `http://localhost:3000` 端口**。  
+> 当您双击打开 `LoongAirHelper-v2.1.1.exe`（Windows）或 `LoongAirHelper-v2.1.1.dmg`（macOS）后，客户端内部会自动拉起轻量级后台服务，并**默认在本地监听 `http://localhost:3000` 端口**。  
 > **因此，只需保持桌面客户端打开（可最小化挂在后台），AI 助手填入 `http://localhost:3000/sse` 即可直接连上！客户端登录的账号与查到的日历与 AI 实时互通！**
 
 - **SSE URL**: `http://localhost:3000/sse`（若部署在远程 NAS 或云服务器，替换为对应局域网/公网 IP）

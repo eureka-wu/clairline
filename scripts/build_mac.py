@@ -20,7 +20,7 @@ ASSETS_DIR = ROOT_DIR / "assets"
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 ROUTES_SEED = ROOT_DIR / "backend" / "data" / "routes_seed.json"
 APP_NAME = "LoongAirHelper"
-VERSION = "v2.1.0"
+VERSION = "v2.1.1"
 
 def generate_mac_icns():
     """将 app_icon.png 转换为 macOS 原生高清 .icns 图标"""
