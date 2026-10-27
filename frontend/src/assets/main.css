@@ -315,6 +315,28 @@ body.is-map-fullscreen .map-explorer-wrapper {
   transition: all 0.2s ease;
 }
 
+.filter-main-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.filter-cities-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.city-select-el {
+  width: 205px;
+}
+
+.filter-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .filter-left {
   display: flex;
   align-items: center;
@@ -1031,41 +1053,95 @@ body.is-map-fullscreen .map-explorer-wrapper {
     border-radius: 6px;
   }
 
-  /* 筛选栏移动端自适应 */
-  .filter-card {
-    padding: 12px 12px;
-    gap: 10px;
-    border-radius: 12px;
+  /* 筛选栏移动端自适应：出发地与目的地直接单行排布，极致精简高度 */
+  .hide-on-mobile {
+    display: none !important;
   }
 
-  .filter-left {
+  .filter-card {
+    top: 48px;
+    padding: 7px 10px;
+    gap: 6px;
+    border-radius: 10px;
+    margin-bottom: 8px;
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+  }
+
+  .filter-main-row {
     width: 100%;
   }
 
-  .custom-el-select {
-    width: 100% !important;
+  .filter-cities-pair {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .city-select-el {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto !important;
+  }
+
+  .city-select-el .el-select__wrapper {
+    min-height: 32px !important;
+    padding: 2px 6px !important;
+    font-size: 0.82rem !important;
   }
 
   .btn-swap {
-    align-self: center;
-    margin: -2px 0;
-    transform: rotate(90deg);
+    width: 26px;
+    height: 26px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+    margin: 0;
+    transform: none !important;
+  }
+
+  .filter-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 6px;
+    margin: 0;
+    padding-top: 1px;
   }
 
   .toggle-switch-wrap {
-    justify-content: flex-start;
-    margin-top: 2px;
+    margin: 0;
+    font-size: 0.74rem;
+    flex-shrink: 0;
+    gap: 5px;
+  }
+
+  .switch-pill {
+    width: 28px;
+    height: 16px;
+    padding: 2px;
+  }
+
+  .switch-dot {
+    width: 12px;
+    height: 12px;
   }
 
   .sort-group {
-    width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: auto;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sort-btn {
+    padding: 3px 6px;
+    font-size: 0.72rem;
+    border-radius: 4px;
   }
 
   /* 移动端弹窗转化为现代优雅的底部抽屉 (Bottom Sheet) */

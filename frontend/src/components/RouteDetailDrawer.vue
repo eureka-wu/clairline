@@ -24,7 +24,7 @@
       <!-- 主体内容 -->
       <div class="drawer-body">
         <!-- 60天可兑换出行日网格 -->
-        <div style="margin-bottom:20px;">
+        <div style="margin-bottom:10px;">
           <div style="font-size:0.9rem; font-weight:800; color:#059669; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <span>近 60 天可兑换出行日 ({{ (route.availableDates || []).length }} 天)</span>
             <div style="display:flex; align-items:center; gap:8px;">
@@ -68,46 +68,13 @@
             </div>
           </div>
         </div>
-
-        <!-- 落地延伸漫游建议 -->
-        <div 
-          v-if="onwardTip" 
-          style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-md); padding:12px 14px; margin-bottom:18px;"
-        >
-          <div style="font-size:0.85rem; font-weight:800; color:#15803d; margin-bottom:4px;">
-            落地【{{ route.to }}】周边延伸漫游建议
-          </div>
-          <div style="font-size:0.78rem; color:#166534; line-height:1.5;">
-            {{ onwardTip }}
-          </div>
-        </div>
-
-        <!-- 周边超级高铁枢纽接驳建议 -->
-        <div v-if="railHubs.length > 0" style="margin-top:10px;">
-          <div style="font-size:0.88rem; font-weight:800; color:var(--text-primary); margin-bottom:8px;">
-            出发地周边超级枢纽高铁接驳
-          </div>
-          <div 
-            v-for="(h, idx) in railHubs" 
-            :key="idx"
-            style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:var(--radius-md); padding:10px 12px; margin-bottom:8px;"
-          >
-            <div style="font-weight:700; font-size:0.82rem; color:var(--accent-cyan);">
-              接驳枢纽：【{{ h.target }}】· 高铁约 {{ h.duration }} (参考 {{ h.priceRange }})
-            </div>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
-              {{ h.advantage }}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { DEST_ONWARD_TIPS, HIGH_SPEED_RAIL_CONNECTIONS } from '../data/city-meta.js';
+import { ref } from 'vue';
 
 const props = defineProps({
   visible: Boolean,
@@ -136,9 +103,6 @@ function onRefreshCalendar() {
     }
   });
 }
-
-const onwardTip = computed(() => DEST_ONWARD_TIPS[props.route.to] || '');
-const railHubs = computed(() => HIGH_SPEED_RAIL_CONNECTIONS[props.route.from] || []);
 
 function formatDateLabel(d) {
   const dt = new Date(d);

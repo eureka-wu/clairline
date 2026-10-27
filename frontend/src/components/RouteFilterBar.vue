@@ -1,110 +1,110 @@
 <template>
   <div class="filter-card">
-    <div class="filter-left">
-      <!-- 出发城市 (Element Plus 现代可搜索组件) -->
-      <span class="filter-label">出发地:</span>
-      <el-select
-        :model-value="origin"
-        filterable
-        :filter-method="filterOriginMethod"
-        placeholder="搜索出发地 (支持拼音/城市)..."
-        style="width: 205px;"
-        class="custom-el-select"
-        @change="onOriginChange"
-      >
-        <el-option label="全部出发地 (全国 71 城)" value="全部">
-          <span style="font-weight:800; color:#0284c7;">全部出发地 (全国 71 城)</span>
-        </el-option>
-        <el-option-group v-for="g in displayGroupedOrigins" :key="g.name" :label="g.name">
+    <!-- 主航线选择区 (桌面单行，移动端顶行平分) -->
+    <div class="filter-main-row">
+      <div class="filter-cities-pair">
+        <span class="filter-label hide-on-mobile">出发地:</span>
+        <el-select
+          :model-value="origin"
+          filterable
+          :filter-method="filterOriginMethod"
+          placeholder="搜索出发地..."
+          class="custom-el-select city-select-el"
+          @change="onOriginChange"
+        >
+          <el-option label="全部出发地 (全国 71 城)" value="全部">
+            <span style="font-weight:800; color:#0284c7;">全部出发地 (全国 71 城)</span>
+          </el-option>
           <el-option
-            v-for="c in g.cities"
+            v-for="c in filteredOrigins"
             :key="c"
             :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
             :value="c"
           >
             <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
               <span style="font-weight:700;">{{ c }}</span>
-              <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province }} · {{ CITY_METADATA[c]?.region }}</span>
+              <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province || '' }}</span>
             </div>
           </el-option>
-        </el-option-group>
-      </el-select>
+        </el-select>
 
-      <!-- 城市互换按钮 -->
-      <button 
-        type="button" 
-        class="btn-swap" 
-        title="点击互换出发地与目的地"
-        @click="swapCity"
-      >
-        ⇄
-      </button>
-
-      <!-- 目的地城市 (严格级联 + Element Plus 可搜索组件) -->
-      <span class="filter-label">目的地:</span>
-      <el-select
-        :model-value="destination"
-        filterable
-        :filter-method="filterDestMethod"
-        :placeholder="`全部直飞 (${availableDests.length}城可飞)`"
-        style="width: 205px;"
-        class="custom-el-select"
-        @change="$emit('update:destination', $event)"
-      >
-        <el-option :label="`全部直飞 (${availableDests.length}城可飞)`" value="全部">
-          <span style="font-weight:800; color:#0284c7;">全部直飞 ({{ availableDests.length }}城可飞)</span>
-        </el-option>
-        <el-option
-          v-for="c in filteredDests"
-          :key="c"
-          :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
-          :value="c"
+        <!-- 城市互换按钮 -->
+        <button 
+          type="button" 
+          class="btn-swap" 
+          title="点击互换出发地与目的地"
+          @click="swapCity"
         >
-          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-            <span style="font-weight:700;">{{ c }}</span>
-            <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province }} · {{ CITY_METADATA[c]?.region }}</span>
-          </div>
-        </el-option>
-      </el-select>
+          ⇄
+        </button>
 
+        <span class="filter-label hide-on-mobile">目的地:</span>
+        <el-select
+          :model-value="destination"
+          filterable
+          :filter-method="filterDestMethod"
+          :placeholder="`全部直飞 (${availableDests.length}城可飞)`"
+          class="custom-el-select city-select-el"
+          @change="$emit('update:destination', $event)"
+        >
+          <el-option :label="`全部直飞 (${availableDests.length}城可飞)`" value="全部">
+            <span style="font-weight:800; color:#0284c7;">全部直飞 ({{ availableDests.length }}城可飞)</span>
+          </el-option>
+          <el-option
+            v-for="c in filteredDests"
+            :key="c"
+            :label="`${c} (${CITY_METADATA[c]?.province || ''})`"
+            :value="c"
+          >
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+              <span style="font-weight:700;">{{ c }}</span>
+              <span style="font-size:0.75rem; color:#64748b;">{{ CITY_METADATA[c]?.province || '' }}</span>
+            </div>
+          </el-option>
+        </el-select>
+      </div>
+    </div>
+
+    <!-- 辅助控制区 (有票开关 + 排序药丸) -->
+    <div class="filter-controls-row">
       <!-- 仅看有票航线开关 -->
       <label class="toggle-switch-wrap" title="点击切换查看有票航线或全部航线">
         <div class="switch-pill" :class="{ active: onlyAvailable }" @click="$emit('update:onlyAvailable', !onlyAvailable)">
           <div class="switch-dot"></div>
         </div>
         <span class="switch-text" @click="$emit('update:onlyAvailable', !onlyAvailable)">
-          {{ onlyAvailable ? `查看有票航线 (${availableCount}条)` : `查看全部航线 (${totalCount}条)` }}
+          {{ onlyAvailable ? `有票 (${availableCount})` : `全部 (${totalCount})` }}
         </span>
       </label>
-    </div>
 
-    <!-- 排序工具栏 -->
-    <div class="sort-group">
-      <span class="sort-label">排序:</span>
-      <button 
-        type="button" 
-        class="sort-btn" 
-        :class="{ active: sortBy === 'recent-first' }"
-        @click="setSort('recent-first')"
-      >
-        最近可兑
-      </button>
-      <button 
-        type="button" 
-        class="sort-btn" 
-        :class="{ active: sortBy === 'time-asc' }"
-        @click="setSort('time-asc')"
-      >
-        起飞时间
-      </button>
-      <button 
-        type="button" 
-        class="sort-btn" 
-        :class="{ active: sortBy === 'dist-desc' }"
-        @click="setSort('dist-desc')"
-      >
-        航距最长
-      </button>
+      <!-- 排序工具栏 -->
+      <div class="sort-group">
+        <span class="sort-label hide-on-mobile">排序:</span>
+        <button 
+          type="button" 
+          class="sort-btn" 
+          :class="{ active: sortBy === 'recent-first' }"
+          @click="setSort('recent-first')"
+        >
+          最近可兑
+        </button>
+        <button 
+          type="button" 
+          class="sort-btn" 
+          :class="{ active: sortBy === 'time-asc' }"
+          @click="setSort('time-asc')"
+        >
+          起飞时间
+        </button>
+        <button 
+          type="button" 
+          class="sort-btn" 
+          :class="{ active: sortBy === 'dist-desc' }"
+          @click="setSort('dist-desc')"
+        >
+          航距最长
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -159,42 +159,23 @@ function setSort(type) {
 const originQuery = ref('');
 const destQuery = ref('');
 
-// 按枢纽层级分组的出发城市
-const groupedOrigins = computed(() => {
-  const hubs = {
-    '核心超级大本营': ['杭州', '银川', '长春'],
-    '重点基地与区域枢纽': ['宁波', '温州', '广州', '成都', '武汉', '哈尔滨', '西安', '郑州', '深圳', '北京', '重庆', '嘉兴'],
-    '新疆与文旅航线': ['阿勒泰', '喀什', '西双版纳', '丽江', '三亚', '海口', '乌鲁木齐', '阿克苏', '海拉尔'],
-    '其他通航城市': []
-  };
-
-  const used = new Set([...hubs['核心超级大本营'], ...hubs['重点基地与区域枢纽'], ...hubs['新疆与文旅航线']]);
-  Object.keys(CITY_METADATA).forEach(city => {
-    if (!used.has(city) && (DIRECT_MAP[city] || []).length > 0) {
-      hubs['其他通航城市'].push(city);
-    }
-  });
-
-  return Object.keys(hubs).map(name => ({
-    name,
-    cities: hubs[name]
-  }));
+// 所有可出发城市列表 (按直达航线数量由多到少排序，常用城市居前)
+const allOriginCities = computed(() => {
+  return Object.keys(CITY_METADATA)
+    .filter(c => (DIRECT_MAP[c] || []).length > 0)
+    .sort((a, b) => (DIRECT_MAP[b] || []).length - (DIRECT_MAP[a] || []).length);
 });
 
-// 支持搜索拼音与中文过滤的出发城市
-const displayGroupedOrigins = computed(() => {
+// 支持拼音/中文/省份搜索的出发城市
+const filteredOrigins = computed(() => {
   const q = originQuery.value.trim().toLowerCase();
-  if (!q) return groupedOrigins.value;
-
-  return groupedOrigins.value.map(g => {
-    const matched = g.cities.filter(c => {
-      const meta = CITY_METADATA[c] || {};
-      const pinyin = meta.pinyin || '';
-      const prov = meta.province || '';
-      return c.includes(q) || pinyin.toLowerCase().includes(q) || prov.includes(q) || (meta.code || '').toLowerCase().includes(q);
-    });
-    return { name: g.name, cities: matched };
-  }).filter(g => g.cities.length > 0);
+  if (!q) return allOriginCities.value;
+  return allOriginCities.value.filter(c => {
+    const meta = CITY_METADATA[c] || {};
+    const pinyin = meta.pinyin || '';
+    const prov = meta.province || '';
+    return c.includes(q) || pinyin.toLowerCase().includes(q) || prov.includes(q) || (meta.code || '').toLowerCase().includes(q);
+  });
 });
 
 // 当前出发地可直达的目的地列表 (严格级联)

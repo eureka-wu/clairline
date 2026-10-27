@@ -55,36 +55,33 @@
           <span style="font-size:0.72rem; color:var(--accent-cyan); font-weight:600;">(点日期查各班余票)</span>
         </template>
       </div>
-
-      <!-- 右侧操作 -->
-      <div class="card-actions">
-        <button 
-          type="button" 
-          class="btn-glass" 
-          style="padding:4px 10px; font-size:0.75rem;"
-          @click="$emit('open-drawer', route)"
-        >
-          接驳方案
-        </button>
-      </div>
     </div>
 
     <!-- 卡片下半部分：可兑换出行日胶囊流 -->
     <div class="dates-deck">
       <div class="dates-badge-btn">
-        <span class="avail-count-tag">可兑换 {{ route.availableDaysCount || 0 }} 天</span>
+        <span 
+          class="avail-count-tag"
+          :style="(route.availableDaysCount || 0) === 0 ? 'background:#f1f5f9; color:#64748b; border-color:#e2e8f0;' : ''"
+        >
+          {{ (route.availableDaysCount || 0) > 0 ? `可兑换 ${route.availableDaysCount} 天` : '暂无放票' }}
+        </span>
         <button 
           type="button" 
           class="btn-refresh-route"
           :disabled="isRefreshing"
           @click="onRefreshCalendar"
-          title="实时联网向长龙官方刷新本航线放票日历"
+          title="向官方刷新放票日历"
         >
           <span>{{ isRefreshing ? '刷新中...' : '刷新放票' }}</span>
         </button>
       </div>
 
       <div class="dates-chips-flow">
+        <div v-if="visibleDates.length === 0" style="font-size:0.75rem; color:#94a3b8; padding:4px 0;">
+          当前暂无可兑日期，可点击上方「刷新放票」查询最新票况
+        </div>
+
         <div 
           v-for="d in visibleDates" 
           :key="d"

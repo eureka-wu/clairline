@@ -873,7 +873,7 @@ async function handlePopoverRefresh({ fromCity, toCity, flightDate, targetEl }) 
       popover.value.flights = res.flights;
       popover.value.timeFormatted = res.queryTime;
       popover.value.visible = true; // 刷新完成后依然稳稳留存在原位！
-      showToast('票况已重新联网刷新并落库！');
+      showToast('最新票况已刷新！');
     } else {
       popover.value.loading = false;
       popover.value.visible = true;

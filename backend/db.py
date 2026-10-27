@@ -701,9 +701,11 @@ def get_available_routes_dto() -> dict:
                 "stopover": f["stopover"]
             })
 
-        # 3. 构造 routes 列表
+        # 3. 构造完整 routes 列表 (包含有放票与暂无放票的全部长龙航线)
+        all_route_pairs = sorted(list(set(flights_map.keys()) | set(routes_dates_map.keys())))
         routes_list = []
-        for (frm, to), dates in routes_dates_map.items():
+        for (frm, to) in all_route_pairs:
+            dates = routes_dates_map.get((frm, to), [])
             f_list = flights_map.get((frm, to), [])
             frm_iata = CITY_IATA_MAP.get(frm, "")
             to_iata = CITY_IATA_MAP.get(to, "")
@@ -717,14 +719,15 @@ def get_available_routes_dto() -> dict:
                 "flights": f_list
             })
 
-        # 按可兑换天数降序排列
-        routes_list.sort(key=lambda x: x["availableDaysCount"], reverse=True)
+        # 排序：有票航线排在前面（按可兑天数降序），无票航线排在后面
+        routes_list.sort(key=lambda x: (x["availableDaysCount"] > 0, x["availableDaysCount"]), reverse=True)
 
         return {
             "ok": True,
             "updateTime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "source": "sqlite_database",
-            "totalAvailableRoutes": len(routes_list),
+            "totalAvailableRoutes": len(routes_dates_map),
+            "totalRoutes": len(routes_list),
             "totalDatePoints": total_points,
             "routes": routes_list
         }

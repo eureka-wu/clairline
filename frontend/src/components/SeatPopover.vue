@@ -29,7 +29,7 @@
             class="btn-popover-refresh" 
             :disabled="loading"
             @click="$emit('refresh', { fromCity, toCity, flightDate, targetEl })"
-            title="重新联网查验长龙官方最新票况"
+            title="刷新最新票况"
           >
             {{ loading ? '查票中...' : '刷新' }}
           </button>
@@ -48,14 +48,14 @@
         <!-- 刷新中半透明高质感遮罩 (已有数据时伴随展示，杜绝高度抖动) -->
         <div v-if="loading && flights && flights.length > 0" class="popover-refreshing-mask">
           <div class="popover-spin-dot"></div>
-          <span>正在联网查验长龙官方最新票况...</span>
+          <span>正在查询最新票况...</span>
         </div>
 
         <!-- 首次查验加载中 (无数据时居中展示平稳高度) -->
         <div v-if="loading && (!flights || flights.length === 0)" class="popover-initial-loading">
           <div class="popover-spin-dot" style="margin-bottom:8px;"></div>
-          <div style="font-weight:700; font-size:0.86rem; color:var(--text-primary);">正在连接长龙官方系统...</div>
-          <div style="font-size:0.74rem; color:var(--text-muted); margin-top:2px;">实时探测当日各航班畅飞卡剩余机位</div>
+          <div style="font-weight:700; font-size:0.86rem; color:var(--text-primary);">正在查询长龙官方票况...</div>
+          <div style="font-size:0.74rem; color:var(--text-muted); margin-top:2px;">探测当日各航班畅飞卡剩余机位</div>
         </div>
 
         <!-- 航班列表 (平滑展示) -->

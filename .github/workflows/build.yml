@@ -1,20 +1,15 @@
-name: Multi-Platform Build (Windows EXE & macOS Apple Silicon DMG)
+name: Multi-Platform Build & Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (留空则自动根据最新 Git Tag 末位递增，如 v2.0.1 -> v2.0.2)'
+        required: false
+        default: ''
   push:
     tags:
       - 'v*'
-    branches:
-      - main
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'app_desktop.py'
-      - 'build_exe.py'
-      - 'build_mac.py'
-      - 'requirements.txt'
-      - '.github/workflows/build.yml'
 
 permissions:
   contents: write
@@ -106,19 +101,36 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code (for tag history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: release_assets
 
-      - name: Determine Tag Name
+      - name: Determine Tag Name (Auto Increment or Manual)
         id: vars
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            TAG_NAME="${{ github.event.inputs.version }}"
           else
-            echo "tag=v2.0.1" >> $GITHUB_OUTPUT
+            # 自动查询最新已发布的 tag
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v2.0.1")
+            echo "Found latest tag: $LATEST_TAG"
+            
+            # 解析末位并自动加 1 (例如 v2.0.1 -> v2.0.2)
+            BASE_PREFIX=$(echo "$LATEST_TAG" | sed -E 's/(.*)\.[0-9]+$/\1/')
+            LAST_NUM=$(echo "$LATEST_TAG" | sed -E 's/.*\.([0-9]+)$/\1/')
+            NEW_NUM=$((LAST_NUM + 1))
+            TAG_NAME="${BASE_PREFIX}.${NEW_NUM}"
+            echo "Auto incremented to new tag: $TAG_NAME"
           fi
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
