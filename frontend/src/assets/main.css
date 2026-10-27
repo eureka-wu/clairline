@@ -955,3 +955,157 @@ body.is-map-fullscreen .map-explorer-wrapper {
   align-items: center;
   justify-content: space-between;
 }
+
+/* ========================================================
+   移动端与触屏设备响应式专属系统 (Mobile & Tablet <= 768px)
+   ======================================================== */
+@media (max-width: 768px) {
+  /* 页面容器适配：减小内边距，安全区自适应 */
+  .app-container {
+    padding: 10px 10px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  /* 航线卡片：由单薄横向挤压改为上下堆叠大卡片 */
+  .route-card {
+    padding: 12px 12px;
+    border-radius: 14px;
+    gap: 10px;
+  }
+
+  .card-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .route-endpoints {
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .city-name {
+    font-size: 1.15rem;
+  }
+
+  .airports-sub {
+    font-size: 0.7rem;
+  }
+
+  .flight-schedule-info {
+    gap: 6px;
+    font-size: 0.78rem;
+  }
+
+  .card-actions {
+    justify-content: flex-end;
+    width: 100%;
+    margin-top: 2px;
+  }
+
+  /* 日期胶囊区域：满宽展开，更易触控 */
+  .dates-deck {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px;
+    gap: 8px;
+    border-radius: 10px;
+  }
+
+  .dates-badge-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dates-chips-flow {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .date-pill {
+    padding: 6px 9px;
+    font-size: 0.76rem;
+    min-height: 30px;
+    border-radius: 6px;
+  }
+
+  /* 筛选栏移动端自适应 */
+  .filter-card {
+    padding: 12px 12px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .filter-left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .custom-el-select {
+    width: 100% !important;
+  }
+
+  .btn-swap {
+    align-self: center;
+    margin: -2px 0;
+    transform: rotate(90deg);
+  }
+
+  .toggle-switch-wrap {
+    justify-content: flex-start;
+    margin-top: 2px;
+  }
+
+  .sort-group {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 移动端弹窗转化为现代优雅的底部抽屉 (Bottom Sheet) */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh;
+    border-radius: 20px 20px 0 0 !important;
+    border-bottom: none;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .modal-header {
+    padding: 14px 16px;
+  }
+
+  .modal-body {
+    padding: 14px 16px;
+  }
+
+  .modal-footer {
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  /* 抽屉 Drawer 在移动端宽度 100% */
+  .drawer-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 常驻悬浮微雷达在移动端靠右下贴近 */
+  .mini-patrol-widget {
+    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    right: 12px !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}

@@ -455,4 +455,16 @@ onUnmounted(() => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 768px) {
+  /* iOS 关键优化：输入框 font-size >= 16px，防止 Safari 聚焦时自动缩放页面 */
+  .sms-input {
+    font-size: 16px !important;
+    padding: 10px 12px;
+  }
+  .btn-sms-code {
+    padding: 0 12px;
+    font-size: 0.8rem;
+  }
+}
 </style>

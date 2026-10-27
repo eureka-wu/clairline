@@ -397,4 +397,57 @@ const headerLabel = computed(() => {
 .version-pill.has-new-version .icon-tag {
   color: #10b981;
 }
+
+/* 移动端专属自适应导航 */
+@media (max-width: 768px) {
+  .header-inner {
+    padding: 6px 10px;
+    height: 48px;
+  }
+
+  .brand-title {
+    display: none;
+  }
+
+  .brand-area {
+    gap: 8px;
+  }
+
+  .tab-segmented {
+    height: 30px;
+  }
+
+  .tab-btn {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 0.74rem;
+    gap: 4px;
+  }
+
+  /* 隐藏 GitHub 外链以释放横向空间 */
+  .github-pill {
+    display: none !important;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .header-pill-btn {
+    height: 30px;
+    padding: 0 8px;
+    font-size: 0.72rem;
+  }
+
+  /* 会员胶囊在小屏只保留姓名 */
+  .member-pill .member-level-tag,
+  .member-pill .member-sub-info {
+    display: none;
+  }
+
+  /* 巡检胶囊在小屏仅保留雷达图标 */
+  .patrol-pill .btn-label-text {
+    display: none;
+  }
+}
 </style>
