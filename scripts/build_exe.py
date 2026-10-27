@@ -78,6 +78,8 @@ def build():
         f"--add-data={ROOT_DIR / 'backend' / 'scheduler.py'};.",
         f"--add-data={ROOT_DIR / 'backend' / 'server.py'};backend",
         f"--add-data={ROOT_DIR / 'backend' / 'server.py'};.",
+        f"--add-data={ROOT_DIR / 'backend' / 'mcp_server.py'};backend",
+        f"--add-data={ROOT_DIR / 'backend' / 'mcp_server.py'};.",
     ]
 
     splash_path = ASSETS_DIR / "splash.png"
@@ -86,6 +88,7 @@ def build():
 
     cmd.extend([
         "--hidden-import=server",
+        "--hidden-import=mcp_server",
         "--hidden-import=db",
         "--hidden-import=seccard_client",
         "--hidden-import=auto_patrol",

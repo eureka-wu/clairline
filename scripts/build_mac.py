@@ -89,6 +89,8 @@ def build_mac():
         f"--add-data={ROOT_DIR / 'backend' / 'scheduler.py'}{sep}.",
         f"--add-data={ROOT_DIR / 'backend' / 'server.py'}{sep}backend",
         f"--add-data={ROOT_DIR / 'backend' / 'server.py'}{sep}.",
+        f"--add-data={ROOT_DIR / 'backend' / 'mcp_server.py'}{sep}backend",
+        f"--add-data={ROOT_DIR / 'backend' / 'mcp_server.py'}{sep}.",
     ]
 
     if icon_file and icon_file.exists():
@@ -96,6 +98,7 @@ def build_mac():
 
     cmd.extend([
         "--hidden-import=server",
+        "--hidden-import=mcp_server",
         "--hidden-import=db",
         "--hidden-import=seccard_client",
         "--hidden-import=auto_patrol",
