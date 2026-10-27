@@ -103,7 +103,7 @@ jobs:
   release:
     name: Publish GitHub Release (Multi-Platform)
     needs: [build-macos-arm64, build-windows]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -111,9 +111,20 @@ jobs:
         with:
           path: release_assets
 
-      - name: Create Release
+      - name: Determine Tag Name
+        id: vars
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v2.0.1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: "长龙航空 · 畅飞智能助手 ${{ steps.vars.outputs.tag }}"
           files: |
             release_assets/LoongAirHelper-Windows-EXE/*.exe
             release_assets/LoongAirHelper-macOS-AppleSilicon-DMG/*.dmg
