@@ -1,6 +1,6 @@
 # 长龙航线 · 智能大盘与航网规划助手
 
-[![GitHub Release](https://img.shields.io/github/v/release/eureka-wu/clairline?color=blue&logo=github)](https://github.com/eureka-wu/clairline/releases/tag/v2.0.0)
+[![GitHub Release](https://img.shields.io/github/v/release/eureka-wu/clairline?color=blue&logo=github)](https://github.com/eureka-wu/clairline/releases/tag/v2.1.2)
 [![Vue 3](https://img.shields.io/badge/Frontend-Vue%203%20%2B%20Vite-42b883?logo=vuedotjs)](https://vuejs.org/)
 [![Python 3](https://img.shields.io/badge/Backend-Python%203%20%2B%20SQLite3-3776ab?logo=python)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%2F%20Web-0078d4?logo=windows)](https://github.com/eureka-wu/clairline)
@@ -9,7 +9,7 @@
 > 一款专为长龙航空旅客与常旅客打造的**纯本地、零抓包、数据私有、高颜值全景航网探索与智能兑换决策平台**。  
 > 现已全面升级**官方手机号短信验证码一键直登**（免代理、免证书），实时全景可视化中国航网 397 条直飞拓扑、未来 60 天放票日历、余票毫秒微气泡、高铁周边延伸接驳漫游、SQLite 本地持久化与多线程自动化普查。  
 > **官方开源仓库**：[https://github.com/eureka-wu/clairline](https://github.com/eureka-wu/clairline)  
-> **最新 Release 发布页**：[https://github.com/eureka-wu/clairline/releases/tag/v2.0.0](https://github.com/eureka-wu/clairline/releases/tag/v2.0.0)
+> **最新 Release 发布页**：[https://github.com/eureka-wu/clairline/releases/tag/v2.1.2](https://github.com/eureka-wu/clairline/releases/tag/v2.1.2)
 
 ---
 
