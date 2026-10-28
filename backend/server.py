@@ -183,7 +183,7 @@ def check_github_update():
                 "current_version": APP_VERSION,
                 "latest_version": APP_VERSION,
                 "has_update": False,
-                "release_name": "长龙航空畅飞助手 v2.0",
+                "release_name": "长龙航空畅飞助手 v2.1.3",
                 "release_notes": "当前已是官方最新版本，暂无新版本发布。",
                 "page_url": f"https://github.com/{GITHUB_REPO}/releases",
                 "download_url": f"https://github.com/{GITHUB_REPO}/releases"

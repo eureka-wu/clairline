@@ -18,7 +18,7 @@
         <div class="version-banner-box">
           <div class="version-meta-row">
             <div class="version-label">
-              当前运行版本：<span class="version-tag-number">{{ updateInfo?.current_version || 'v2.0.0' }}</span>
+              当前运行版本：<span class="version-tag-number">{{ updateInfo?.current_version || 'v2.1.3' }}</span>
             </div>
             <div v-if="updateInfo?.has_update" class="status-badge badge-new">
               最新：{{ updateInfo?.latest_version }}
@@ -29,7 +29,7 @@
           </div>
           
           <div class="version-app-title">
-            {{ updateInfo?.release_name || '长龙航空畅飞助手 v2.0' }}
+            {{ updateInfo?.release_name || '长龙航空畅飞助手 v2.1.3' }}
           </div>
         </div>
 

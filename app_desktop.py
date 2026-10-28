@@ -78,7 +78,7 @@ def cleanup_proxy_if_needed():
     pass
 
 GITHUB_REPO_URL = "https://github.com/eureka-wu/clairline"
-APP_TITLE = "长龙航空 · 畅飞智能助手 v2.0 (GitHub: eureka-wu/clairline)"
+APP_TITLE = f"长龙航空 · 畅飞智能助手 {getattr(server, 'APP_VERSION', 'v2.1.3')} (GitHub: eureka-wu/clairline)"
 
 def boot_log(msg: str):
     try:

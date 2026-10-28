@@ -137,7 +137,7 @@ const props = defineProps({
   },
   updateInfo: {
     type: Object,
-    default: () => ({ has_update: false, current_version: 'v2.0.0' })
+    default: () => ({ has_update: false, current_version: 'v2.1.3' })
   }
 });
 
