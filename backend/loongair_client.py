@@ -47,9 +47,8 @@ def get_device_info() -> str:
 
 def build_app_headers(session_id: str = "") -> Dict[str, str]:
     """构造标准的长龙官方 iPhone App 请求头"""
-    cookie_val = ""
-    if session_id:
-        cookie_val = session_id if session_id.startswith("SESSION=") else f"SESSION={session_id}"
+    raw_token = session_id[len("SESSION="):] if session_id.startswith("SESSION=") else session_id
+    cookie_val = f"SESSION={raw_token}" if raw_token else ""
     return {
         "Host": "www.loongair.cn",
         "Accept": "*/*",
@@ -59,7 +58,7 @@ def build_app_headers(session_id: str = "") -> Dict[str, str]:
         "User-Agent": APP_USER_AGENT,
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "Cookie": cookie_val,
-        "Authorization": ""
+        "Authorization": raw_token
     }
 
 
@@ -87,7 +86,7 @@ def _call_api(method: str, params: dict, headers: dict, timeout: float = 6.0) ->
             "Accept-Language": "zh-CN,zh-Hans;q=0.9",
             "User-Agent": headers.get("user-agent") or headers.get("User-Agent") or APP_USER_AGENT,
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Authorization": token if "finogeeks" not in (headers.get("User-Agent") or "").lower() else "",
+            "Authorization": token,
             "Cookie": cookie,
         }
     else:
@@ -226,7 +225,7 @@ def fetch_full_user_profile(headers: Dict[str, str]) -> Dict[str, Any]:
 
 def send_sms_verify_code(mobile: str, check_param: str) -> dict:
     """
-    通过长龙官方 App 原生接口 (AccountService_GetPhoneVerifyCodeHandler, SaleChannel: 8) 下发短信验证码
+    通过长龙官方统一认证微服务 (/user/clientNoLogin/channel/getVerifyCode, SaleChannel: 8) 下发短信验证码
     """
     if not mobile or len(mobile) != 11:
         return {"ok": False, "error": "请输入正确的11位手机号"}
@@ -237,54 +236,9 @@ def send_sms_verify_code(mobile: str, check_param: str) -> dict:
         check_param = f"CN31_{check_param}"
 
     params = {
-        "ImageVerifyCode": check_param,
-        "VerifyCodeType": 101,
-        "PhoneNumber": mobile,
-        "SaleChannel": 8,
-        "saleChannel": 8,
-        "language": "zh-cn"
-    }
-    headers = build_app_headers()
-
-    res = _call_api("AccountService_GetPhoneVerifyCodeHandler", params, headers)
-    if not res:
-        return {"ok": False, "error": "请求长龙官方短信接口网络超时"}
-
-    err_code = res.get("ErrorCode")
-    if err_code == 0:
-        result_obj = _safe_parse_result(res)
-        base64_session_id = ""
-        if isinstance(result_obj, dict):
-            base64_session_id = result_obj.get("Base64SessionID") or result_obj.get("verifyId") or ""
-        if not base64_session_id:
-            base64_session_id = res.get("_set_cookie_session") or ""
-
-        if base64_session_id:
-            _PENDING_SESSIONS[mobile] = base64_session_id
-
-        return {
-            "ok": True,
-            "message": "验证码已成功发送，请注意查收短信",
-            "verifyId": base64_session_id
-        }
-    else:
-        msg = res.get("message") or "发送验证码失败"
-        return {"ok": False, "error": f"{msg} (代码: {err_code})"}
-
-
-def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
-    """
-    通过长龙官方 App 原生接口 (sales_user_mobileLogin, SaleChannel: 8) 完成验证码登录并持久化入库
-    """
-    if not mobile or not code:
-        return {"ok": False, "error": "手机号与验证码不能为空"}
-
-    pre_session = (verify_id or _PENDING_SESSIONS.get(mobile) or "").strip()
-
-    params = {
-        "LoginWay": 1,
-        "UserName": mobile,
-        "VerifyCode": code,
+        "checkParam": check_param,
+        "verifyCodeType": 9,
+        "mobile": mobile,
         "userLoginLog": {
             "channel": "APP",
             "deviceInfo": get_device_info(),
@@ -295,9 +249,61 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         "saleChannel": 8,
         "language": "zh-cn"
     }
-    headers = build_app_headers(pre_session)
+    headers = build_app_headers()
 
-    res = _call_api("sales_user_mobileLogin", params, headers)
+    res = _call_api("/user/clientNoLogin/channel/getVerifyCode", params, headers)
+    if not res:
+        return {"ok": False, "error": "请求长龙官方短信接口网络超时"}
+
+    err_code = res.get("ErrorCode")
+    if err_code == 0:
+        result_obj = _safe_parse_result(res)
+        verify_id = ""
+        if isinstance(result_obj, dict):
+            verify_id = result_obj.get("verifyId") or result_obj.get("Base64SessionID") or ""
+        if not verify_id:
+            verify_id = res.get("_set_cookie_session") or ""
+
+        if verify_id:
+            _PENDING_SESSIONS[mobile] = verify_id
+
+        return {
+            "ok": True,
+            "message": "验证码已成功发送，请注意查收短信",
+            "verifyId": verify_id
+        }
+    else:
+        msg = res.get("message") or "发送验证码失败"
+        return {"ok": False, "error": f"{msg} (代码: {err_code})"}
+
+
+def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
+    """
+    通过长龙官方统一认证微服务 (/user/clientNoLogin/channel/mobileCodeLogin, SaleChannel: 8) 完成验证码登录并持久化入库
+    """
+    if not mobile or not code:
+        return {"ok": False, "error": "手机号与验证码不能为空"}
+
+    pre_verify_id = (verify_id or _PENDING_SESSIONS.get(mobile) or "").strip()
+
+    params = {
+        "channelType": 4,
+        "mobile": mobile,
+        "code": code,
+        "verifyId": pre_verify_id,
+        "userLoginLog": {
+            "channel": "APP",
+            "deviceInfo": get_device_info(),
+            "clientInfo": "App",
+            "appVersion": "1.0.239"
+        },
+        "SaleChannel": 8,
+        "saleChannel": 8,
+        "language": "zh-cn"
+    }
+    headers = build_app_headers()
+
+    res = _call_api("/user/clientNoLogin/channel/mobileCodeLogin", params, headers)
     if not res:
         return {"ok": False, "error": "登录请求超时或官方接口无响应"}
 
@@ -308,12 +314,12 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
             result_obj = {}
 
         base64_session_id = (
-            result_obj.get("Base64SessionID")
+            result_obj.get("loongairToken")
+            or result_obj.get("Base64SessionID")
             or res.get("_set_cookie_session")
-            or result_obj.get("loongairToken")
-            or pre_session
+            or ""
         )
-        app_token = result_obj.get("token") or result_obj.get("refreshToken") or ""
+        app_token = result_obj.get("refreshToken") or result_obj.get("token") or ""
         encrypted_user_id = result_obj.get("encryptedUserId") or ""
 
         if not base64_session_id:

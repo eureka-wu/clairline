@@ -429,8 +429,8 @@ if (typeof window !== 'undefined') {
 
 const updateInfo = ref({
   has_update: false,
-  current_version: 'v2.1.2',
-  latest_version: 'v2.1.2',
+  current_version: 'v2.1.3',
+  latest_version: 'v2.1.3',
   release_name: '',
   release_notes: '',
   page_url: 'https://github.com/eureka-wu/clairline/releases',

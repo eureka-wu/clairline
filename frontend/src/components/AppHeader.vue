@@ -96,7 +96,7 @@
           :title="updateInfo?.has_update ? `发现新版本 ${updateInfo.latest_version}！点击查看更新` : '当前软件版本 (点击检查更新)'"
         >
           <span class="btn-icon-wrap icon-tag" v-html="ICONS.tag"></span>
-          <span class="btn-label-text">{{ updateInfo?.has_update ? '新版可用' : (updateInfo?.current_version || 'v2.1.2') }}</span>
+          <span class="btn-label-text">{{ updateInfo?.has_update ? '新版可用' : (updateInfo?.current_version || 'v2.1.3') }}</span>
         </button>
 
 

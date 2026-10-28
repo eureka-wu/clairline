@@ -91,6 +91,10 @@ def find_free_port(start_port: int = 3000, max_tries: int = 30) -> int:
     """动态探测可用未占用端口，彻底避免端口冲突导致闪退"""
     import socket
     for p in range(start_port, start_port + max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_conn:
+            s_conn.settimeout(0.15)
+            if s_conn.connect_ex(('127.0.0.1', p)) == 0:
+                continue
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
                 s.bind(('127.0.0.1', p))

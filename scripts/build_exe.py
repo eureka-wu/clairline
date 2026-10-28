@@ -25,7 +25,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 ASSETS_DIR = ROOT_DIR / "assets"
 FRONTEND_DIST = ROOT_DIR / "frontend" / "dist"
 ROUTES_SEED = ROOT_DIR / "backend" / "data" / "routes_seed.json"
-VERSION = "v2.1.2"
+VERSION = "v2.1.3"
 
 def build():
     print("=" * 65)

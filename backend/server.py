@@ -64,7 +64,7 @@ def get_auth_status() -> dict:
     
     has_profile = bool(mobile or prof.get("user_name"))
     
-    # 判定是否过期：若距离上次成功保活超过 25 分钟，主动向长龙网关发起一次实时探针校验
+    # 判定是否过期：仅在捕获到 100001/403 或距上次校验超过 2 小时打开页面时按需校验一次，零后台轮询
     is_expired = False
     if AUTH_EXPIRED and has_profile:
         is_expired = True
@@ -72,7 +72,7 @@ def get_auth_status() -> dict:
         try:
             dt = datetime.strptime(update_time, "%Y-%m-%d %H:%M:%S")
             diff_minutes = (datetime.now() - dt).total_seconds() / 60.0
-            if diff_minutes >= 25.0:
+            if diff_minutes >= 120.0:
                 from loongair_client import keepalive_session
                 ka_res = keepalive_session()
                 if ka_res.get("ok"):
@@ -129,7 +129,7 @@ def reset_user_auth() -> dict:
 db.init_db()
 
 PORT = 3000
-APP_VERSION = "v2.1.2"
+APP_VERSION = "v2.1.3"
 GITHUB_REPO = "eureka-wu/clairline"
 client = SecCardClient()
 scheduler = MonitorScheduler(client)
@@ -755,29 +755,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
 
-def start_session_keepalive_daemon():
-    """后台守护线程：每 12 分钟向长龙网关发送一次轻量级保活心跳，防止服务端 Redis Session 因闲置超时被回收"""
-    def _keepalive_loop():
-        time.sleep(2)
-        while True:
-            try:
-                from loongair_client import keepalive_session
-                res = keepalive_session()
-                if res.get("ok"):
-                    clear_auth_expired()
-                    client.check_and_reload()
-                elif res.get("expired"):
-                    mark_auth_expired()
-            except Exception as e:
-                print(f"[KeepAlive] 会话保活巡检提示: {e}")
-            time.sleep(720)
-
-    t = threading.Thread(target=_keepalive_loop, daemon=True, name="SessionKeepAlive")
-    t.start()
-
-
 def run():
-    start_session_keepalive_daemon()
     host = os.environ.get("CLAIRLINE_HOST", "0.0.0.0")
     port = int(os.environ.get("CLAIRLINE_PORT", PORT))
     server = http.server.ThreadingHTTPServer((host, port), AppHandler)
