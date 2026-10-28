@@ -113,12 +113,12 @@ class SecCardClient:
                 token = prof.get("token") or ""
                 custom_headers = prof.get("headers") or {}
                 
-                # 智能识别是否为长龙官方 App 凭据
-                is_app = False
+                # 智能识别是否为长龙官方 App 凭据 (默认优先走 App 渠道 8)
+                is_app = True
                 if custom_headers and isinstance(custom_headers, dict):
                     ua = str(custom_headers.get("User-Agent") or custom_headers.get("user-agent") or "")
-                    if "finogeeks" in ua.lower() or "iphone" in ua.lower() or any("appversion" in k.lower() for k in custom_headers):
-                        is_app = True
+                    if "micromessenger" in ua.lower() or "servicewechat" in str(custom_headers.get("Referer") or ""):
+                        is_app = False
 
                 if custom_headers and isinstance(custom_headers, dict) and len(custom_headers) >= 3:
                     self.headers = dict(custom_headers)
@@ -128,14 +128,15 @@ class SecCardClient:
                         self.headers["Cookie"] = f"SESSION={token}"
                 else:
                     self.headers = {
-                        "Authorization": token,
+                        "Host": "www.loongair.cn",
+                        "Accept": "*/*",
+                        "AppVersion": "5.1.1",
+                        "SubVersion": "1.0.239",
+                        "Accept-Language": "zh-CN,zh-Hans;q=0.9",
+                        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Provider/finogeeks (iPhone; miniprogram; FinChat; runtimeSdkVersion/2.51.11)",
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                         "Cookie": f"SESSION={token}",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
-                        "X-App-Version": "2.4.77",
-                        "NESign": "[object Null]",
-                        "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-                        "xweb_xhr": "1",
-                        "Accept": "*/*"
+                        "Authorization": ""
                     }
 
                 channel_id = 8 if is_app else 76
@@ -343,6 +344,7 @@ class SecCardClient:
 
     def search_flights(self, frm: str, to: str, date_str: str) -> list[dict]:
         """查询某航线某日航班与真实余量，具备高精度智能航班号反查算法"""
+        self.check_and_reload()
         frm_code = CITY_IATA.get(frm, frm)
         to_code = CITY_IATA.get(to, to)
         p = dict(self.template)
@@ -424,14 +426,16 @@ class SecCardClient:
 
     def get_calendar(self, frm: str, to: str) -> dict:
         """查询整条航线近 60 天官方兑换日历 (1=有可兑, 0=已兑完, -1=未开放, -2=不适用, -3=已截止, -4=无航班)"""
+        self.check_and_reload()
         frm_code = CITY_IATA.get(frm, frm)
         to_code = CITY_IATA.get(to, to)
+        ch = self.template.get("SaleChannel", 8)
         p = {
             "scgTid": str(self.template.get("secCardGrantTid", "")),
             "departureCode": frm_code,
             "arriveCode": to_code,
-            "SaleChannel": 76,
-            "saleChannel": 76,
+            "SaleChannel": ch,
+            "saleChannel": ch,
             "language": "zh-cn"
         }
         res = self.call_api("getSecCardRedeemedCalendar", p)
@@ -447,12 +451,14 @@ class SecCardClient:
 
     def get_official_destinations(self, frm: str) -> list[str]:
         """从长龙官方直接拉取某出发地允许兑换的官方目的地城市列表"""
+        self.check_and_reload()
         frm_code = CITY_IATA.get(frm, frm)
+        ch = self.template.get("SaleChannel", 8)
         p = {
             "scgTid": str(self.template.get("secCardGrantTid", "")),
             "fromCode": frm_code,
-            "SaleChannel": 76,
-            "saleChannel": 76,
+            "SaleChannel": ch,
+            "saleChannel": ch,
             "language": "zh-cn"
         }
         res = self.call_api("/coupon/client/getSecCardArriveAirport", p)

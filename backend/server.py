@@ -64,23 +64,24 @@ def get_auth_status() -> dict:
     
     has_profile = bool(mobile or prof.get("user_name"))
     
-    # 判定是否过期：捕获到 100001/403 或微信短效凭据跨天超过 18 小时 (App 长效凭据以服务端实时探针为准)
+    # 判定是否过期：若距离上次成功保活超过 25 分钟，主动向长龙网关发起一次实时探针校验
     is_expired = False
-    is_app = False
-    custom_headers = prof.get("headers") or {}
-    if custom_headers and isinstance(custom_headers, dict):
-        ua = str(custom_headers.get("User-Agent") or custom_headers.get("user-agent") or "")
-        if "finogeeks" in ua.lower() or "iphone" in ua.lower() or any("appversion" in k.lower() for k in custom_headers):
-            is_app = True
-
     if AUTH_EXPIRED and has_profile:
         is_expired = True
-    elif token and update_time and not is_app:
+    elif token and update_time:
         try:
             dt = datetime.strptime(update_time, "%Y-%m-%d %H:%M:%S")
-            diff_hours = (datetime.now() - dt).total_seconds() / 3600.0
-            if diff_hours >= 18.0:
-                is_expired = True
+            diff_minutes = (datetime.now() - dt).total_seconds() / 60.0
+            if diff_minutes >= 25.0:
+                from loongair_client import keepalive_session
+                ka_res = keepalive_session()
+                if ka_res.get("ok"):
+                    clear_auth_expired()
+                    prof = db.get_user_profile() or prof
+                    update_time = prof.get("updated_at") or update_time
+                elif ka_res.get("expired"):
+                    mark_auth_expired()
+                    is_expired = True
         except Exception:
             pass
 
@@ -754,7 +755,29 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
 
+def start_session_keepalive_daemon():
+    """后台守护线程：每 12 分钟向长龙网关发送一次轻量级保活心跳，防止服务端 Redis Session 因闲置超时被回收"""
+    def _keepalive_loop():
+        time.sleep(2)
+        while True:
+            try:
+                from loongair_client import keepalive_session
+                res = keepalive_session()
+                if res.get("ok"):
+                    clear_auth_expired()
+                    client.check_and_reload()
+                elif res.get("expired"):
+                    mark_auth_expired()
+            except Exception as e:
+                print(f"[KeepAlive] 会话保活巡检提示: {e}")
+            time.sleep(720)
+
+    t = threading.Thread(target=_keepalive_loop, daemon=True, name="SessionKeepAlive")
+    t.start()
+
+
 def run():
+    start_session_keepalive_daemon()
     host = os.environ.get("CLAIRLINE_HOST", "0.0.0.0")
     port = int(os.environ.get("CLAIRLINE_PORT", PORT))
     server = http.server.ThreadingHTTPServer((host, port), AppHandler)

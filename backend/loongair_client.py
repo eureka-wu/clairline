@@ -1,45 +1,118 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-长龙航空官方接口精简客户端 (LoongAir Client)
-在获取到长龙 Authorization 后，主动轻量请求核心接口：
-1. sales_user_userDetailInfo：获取姓名、实名状态、手机号、证件号
-2. cardToC_getUnionCardList：获取畅飞卡授权 ID (scgTid) 与产品名称
-(已根据用户需求彻底省略积分、卡包数、券包数等无关接口，极速完成)
+长龙航空官方接口客户端 (LoongAir Client - 官方 App 原生协议 SaleChannel: 8)
+核心接口：
+1. AccountService_GetPhoneVerifyCodeHandler：App 原生下发短信验证码并颁发预会话 Base64SessionID
+2. sales_user_mobileLogin：App 原生短信登录，绑定长效 SESSION Cookie
+3. sales_user_userDetailInfo：获取姓名、实名状态、手机号、证件号（兼作后台保活心跳）
+4. cardToC_getUnionCardList：获取畅飞卡授权 ID (scgTid) 与产品名称
 """
 
 import json
+import uuid
 import urllib.parse
+from datetime import datetime
 from typing import Dict, Any, Optional
 import requests
 
 LOONGAIR_GATEWAY_URL = "https://www.loongair.cn/webhandler.ashx"
 
-def _call_api(method: str, params: dict, headers: dict, timeout: float = 5.0) -> Optional[dict]:
-    """统一调用长龙 webhandler.ashx 接口"""
-    token = headers.get("authorization") or headers.get("Authorization") or ""
-    cookie = headers.get("cookie") or headers.get("Cookie") or (f"SESSION={token}" if token else "")
-    
-    req_headers = {
-        "User-Agent": headers.get("user-agent") or headers.get("User-Agent") or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MicroMessenger/7.0.20",
-        "Authorization": token,
-        "Cookie": cookie,
+APP_USER_AGENT = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 "
+    "Provider/finogeeks (iPhone; miniprogram; FinChat; runtimeSdkVersion/2.51.11)"
+)
+
+# 内存暂存手机号对应的短信预分配 SessionID（双保险配合前端 verifyId 回传）
+_PENDING_SESSIONS: Dict[str, str] = {}
+
+
+def get_device_info() -> str:
+    """基于本机硬件特征哈希派生稳定的主流 iPhone 机型标识，兼顾一人一指纹与防风控聚集"""
+    device_pool = [
+        "iPhone<iPhone17,2>,ios18.4",
+        "iPhone<iPhone17,1>,ios18.3",
+        "iPhone<iPhone16,2>,ios18.2",
+        "iPhone<iPhone16,1>,ios18.1",
+        "iPhone<iPhone15,3>,ios17.6",
+        "iPhone<iPhone15,2>,ios17.5",
+    ]
+    try:
+        idx = uuid.getnode() % len(device_pool)
+        return device_pool[idx]
+    except Exception:
+        return device_pool[0]
+
+
+def build_app_headers(session_id: str = "") -> Dict[str, str]:
+    """构造标准的长龙官方 iPhone App 请求头"""
+    cookie_val = ""
+    if session_id:
+        cookie_val = session_id if session_id.startswith("SESSION=") else f"SESSION={session_id}"
+    return {
+        "Host": "www.loongair.cn",
+        "Accept": "*/*",
+        "AppVersion": "5.1.1",
+        "SubVersion": "1.0.239",
+        "Accept-Language": "zh-CN,zh-Hans;q=0.9",
+        "User-Agent": APP_USER_AGENT,
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Referer": headers.get("referer") or headers.get("Referer") or "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-        "xweb_xhr": "1"
+        "Cookie": cookie_val,
+        "Authorization": ""
     }
-    if "NESign" in headers:
-        req_headers["NESign"] = headers["NESign"]
-    if "X-App-Version" in headers:
-        req_headers["X-App-Version"] = headers["X-App-Version"]
-    
+
+
+def _is_app_headers(headers: Dict[str, Any]) -> bool:
+    if not headers or not isinstance(headers, dict):
+        return True
+    ua = str(headers.get("User-Agent") or headers.get("user-agent") or "")
+    if "finogeeks" in ua.lower() or "iphone" in ua.lower() or any("appversion" in k.lower() for k in headers):
+        return True
+    return False
+
+
+def _call_api(method: str, params: dict, headers: dict, timeout: float = 6.0) -> Optional[dict]:
+    """统一调用长龙 webhandler.ashx 接口"""
+    if _is_app_headers(headers):
+        cookie = headers.get("cookie") or headers.get("Cookie") or ""
+        token = headers.get("authorization") or headers.get("Authorization") or ""
+        if not cookie and token:
+            cookie = f"SESSION={token}" if not token.startswith("SESSION=") else token
+        req_headers = {
+            "Host": "www.loongair.cn",
+            "Accept": "*/*",
+            "AppVersion": str(headers.get("AppVersion") or "5.1.1"),
+            "SubVersion": str(headers.get("SubVersion") or "1.0.239"),
+            "Accept-Language": "zh-CN,zh-Hans;q=0.9",
+            "User-Agent": headers.get("user-agent") or headers.get("User-Agent") or APP_USER_AGENT,
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Authorization": token if "finogeeks" not in (headers.get("User-Agent") or "").lower() else "",
+            "Cookie": cookie,
+        }
+    else:
+        token = headers.get("authorization") or headers.get("Authorization") or ""
+        cookie = headers.get("cookie") or headers.get("Cookie") or (f"SESSION={token}" if token else "")
+        req_headers = {
+            "User-Agent": headers.get("user-agent") or headers.get("User-Agent") or APP_USER_AGENT,
+            "Authorization": token,
+            "Cookie": cookie,
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Referer": headers.get("referer") or headers.get("Referer") or "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
+            "xweb_xhr": "1"
+        }
+        if "NESign" in headers:
+            req_headers["NESign"] = headers["NESign"]
+        if "X-App-Version" in headers:
+            req_headers["X-App-Version"] = headers["X-App-Version"]
+
     payload = {
         "AppID": "ClientService",
         "MethodName": method,
         "Parameters": json.dumps(params, ensure_ascii=False)
     }
     body = "paras=" + urllib.parse.quote(json.dumps(payload, ensure_ascii=False))
-    
+
     try:
         resp = requests.post(
             LOONGAIR_GATEWAY_URL,
@@ -49,10 +122,16 @@ def _call_api(method: str, params: dict, headers: dict, timeout: float = 5.0) ->
             proxies={"http": None, "https": None}
         )
         if resp.status_code in (200, 201):
-            return resp.json()
+            data = resp.json()
+            if isinstance(data, dict):
+                sess_cookie = resp.cookies.get("SESSION")
+                if sess_cookie:
+                    data["_set_cookie_session"] = sess_cookie
+            return data
     except Exception as e:
         print(f"[LoongAirClient] 请求 {method} 提示: {e}")
     return None
+
 
 def _safe_parse_result(res: Optional[dict]) -> Any:
     """安全解析长龙返回的 Result 字段 (转义 JSON 字符串)"""
@@ -73,9 +152,10 @@ def _safe_parse_result(res: Optional[dict]) -> Any:
         return raw_res
     return raw_res
 
+
 def fetch_full_user_profile(headers: Dict[str, str]) -> Dict[str, Any]:
     """
-    轻量快速获取会员核心档案与畅飞卡信息 (极速精简版)
+    轻量快速获取会员核心档案与畅飞卡信息 (自动适配 App 渠道 8 与旧版渠道 76)
     """
     profile: Dict[str, Any] = {
         "user_name": "长龙会员",
@@ -87,9 +167,10 @@ def fetch_full_user_profile(headers: Dict[str, str]) -> Dict[str, Any]:
         "sec_card_grant_tid": "",
         "is_verified": 0
     }
-    
-    default_params = {"SaleChannel": 76, "saleChannel": 76, "language": "zh-cn"}
-    
+
+    channel_id = 8 if _is_app_headers(headers) else 76
+    default_params = {"SaleChannel": channel_id, "saleChannel": channel_id, "language": "zh-cn"}
+
     # 1. 核心接口：查询用户基本信息与实名认证状态
     detail_res = _call_api("sales_user_userDetailInfo", default_params, headers)
     detail_data = _safe_parse_result(detail_res)
@@ -97,21 +178,21 @@ def fetch_full_user_profile(headers: Dict[str, str]) -> Dict[str, Any]:
         name = detail_data.get("Name") or detail_data.get("aliasName")
         if name:
             profile["user_name"] = str(name).strip()
-            
+
         mobile = detail_data.get("Mobile")
         if mobile:
             profile["mobile"] = str(mobile).strip()
-            
+
         foid = detail_data.get("Foid")
         if foid:
             profile["cert_number"] = str(foid).strip()
         elif detail_data.get("IDInfoList") and isinstance(detail_data["IDInfoList"], list) and len(detail_data["IDInfoList"]) > 0:
             profile["cert_number"] = detail_data["IDInfoList"][0].get("foid", "")
-            
+
         enc_id = detail_data.get("encryptedUserId")
         if enc_id:
             profile["encrypted_user_id"] = str(enc_id).strip()
-            
+
         if detail_data.get("ifReal") is True or detail_data.get("IsCertified") == 1 or detail_data.get("authFlg") is True:
             profile["is_verified"] = 1
 
@@ -120,7 +201,11 @@ def fetch_full_user_profile(headers: Dict[str, str]) -> Dict[str, Any]:
         profile["member_level"] = level_map.get(lvl, "乘云会员")
 
     # 2. 核心接口：查询畅飞卡授权 ID 与卡信息
-    card_res = _call_api("cardToC_getUnionCardList", {"cardTypes": 0, "cardStatus": [0], "SaleChannel": 76, "saleChannel": 76, "language": "zh-cn"}, headers)
+    card_res = _call_api(
+        "cardToC_getUnionCardList",
+        {"cardTypes": 0, "cardStatus": [0], "SaleChannel": channel_id, "saleChannel": channel_id, "language": "zh-cn"},
+        headers
+    )
     card_data = _safe_parse_result(card_res)
     if isinstance(card_data, dict):
         cards = card_data.get("cardInfoList", [])
@@ -141,55 +226,46 @@ def fetch_full_user_profile(headers: Dict[str, str]) -> Dict[str, Any]:
 
 def send_sms_verify_code(mobile: str, check_param: str) -> dict:
     """
-    请求长龙官方下发短信验证码
-    :param mobile: 11位手机号
-    :param check_param: 网易易盾验证通过后的 validate 凭据 (如带或不带 CN31_ 前缀)
+    通过长龙官方 App 原生接口 (AccountService_GetPhoneVerifyCodeHandler, SaleChannel: 8) 下发短信验证码
     """
     if not mobile or len(mobile) != 11:
         return {"ok": False, "error": "请输入正确的11位手机号"}
     if not check_param:
         return {"ok": False, "error": "请先完成安全验证（点选/滑块）"}
 
-    # 如果 validate 没有带 CN 区域前缀，自动补全长龙网易易盾的 CN31_ 区域标识
     if not check_param.startswith("CN"):
         check_param = f"CN31_{check_param}"
 
     params = {
-        "checkParam": check_param,
-        "verifyCodeType": 9,
-        "mobile": mobile,
-        "userLoginLog": {
-            "channel": "WECHAT_MINI_PROGRAM",
-            "deviceInfo": "microsoft,windows10",
-            "clientInfo": "小程序",
-            "appVersion": "2.4.77"
-        },
-        "SaleChannel": 76,
-        "saleChannel": 76,
+        "ImageVerifyCode": check_param,
+        "VerifyCodeType": 101,
+        "PhoneNumber": mobile,
+        "SaleChannel": 8,
+        "saleChannel": 8,
         "language": "zh-cn"
     }
+    headers = build_app_headers()
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
-        "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-        "X-App-Version": "2.4.77",
-        "NESign": "[object Null]"
-    }
-
-    res = _call_api("/user/clientNoLogin/channel/getVerifyCode", params, headers)
+    res = _call_api("AccountService_GetPhoneVerifyCodeHandler", params, headers)
     if not res:
         return {"ok": False, "error": "请求长龙官方短信接口网络超时"}
 
     err_code = res.get("ErrorCode")
     if err_code == 0:
         result_obj = _safe_parse_result(res)
-        verify_id = ""
+        base64_session_id = ""
         if isinstance(result_obj, dict):
-            verify_id = result_obj.get("verifyId", "")
+            base64_session_id = result_obj.get("Base64SessionID") or result_obj.get("verifyId") or ""
+        if not base64_session_id:
+            base64_session_id = res.get("_set_cookie_session") or ""
+
+        if base64_session_id:
+            _PENDING_SESSIONS[mobile] = base64_session_id
+
         return {
             "ok": True,
             "message": "验证码已成功发送，请注意查收短信",
-            "verifyId": verify_id
+            "verifyId": base64_session_id
         }
     else:
         msg = res.get("message") or "发送验证码失败"
@@ -198,94 +274,114 @@ def send_sms_verify_code(mobile: str, check_param: str) -> dict:
 
 def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
     """
-    提交短信验证码完成登录，获取 loongairToken 并持久化入库
+    通过长龙官方 App 原生接口 (sales_user_mobileLogin, SaleChannel: 8) 完成验证码登录并持久化入库
     """
     if not mobile or not code:
         return {"ok": False, "error": "手机号与验证码不能为空"}
 
+    pre_session = (verify_id or _PENDING_SESSIONS.get(mobile) or "").strip()
+
     params = {
-        "channelType": 4,
-        "mobile": mobile,
-        "code": code,
-        "verifyId": verify_id or "",
+        "LoginWay": 1,
+        "UserName": mobile,
+        "VerifyCode": code,
         "userLoginLog": {
-            "channel": "WECHAT_MINI_PROGRAM",
-            "deviceInfo": "microsoft,windows10",
-            "clientInfo": "小程序",
-            "appVersion": "2.4.77"
+            "channel": "APP",
+            "deviceInfo": get_device_info(),
+            "clientInfo": "App",
+            "appVersion": "1.0.239"
         },
-        "SaleChannel": 76,
-        "saleChannel": 76,
+        "SaleChannel": 8,
+        "saleChannel": 8,
         "language": "zh-cn"
     }
+    headers = build_app_headers(pre_session)
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
-        "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-        "X-App-Version": "2.4.77",
-        "NESign": "[object Null]"
-    }
-
-    res = _call_api("/user/clientNoLogin/channel/mobileCodeLogin", params, headers)
+    res = _call_api("sales_user_mobileLogin", params, headers)
     if not res:
         return {"ok": False, "error": "登录请求超时或官方接口无响应"}
 
     err_code = res.get("ErrorCode")
     if err_code == 0:
         result_obj = _safe_parse_result(res) or {}
-        loongair_token = result_obj.get("loongairToken", "")
-        refresh_token = result_obj.get("refreshToken", "")
-        encrypted_user_id = result_obj.get("encryptedUserId", "")
+        if not isinstance(result_obj, dict):
+            result_obj = {}
 
-        if not loongair_token:
-            return {"ok": False, "error": "长龙返回登录成功但缺少 loongairToken 凭据"}
+        base64_session_id = (
+            result_obj.get("Base64SessionID")
+            or res.get("_set_cookie_session")
+            or result_obj.get("loongairToken")
+            or pre_session
+        )
+        app_token = result_obj.get("token") or result_obj.get("refreshToken") or ""
+        encrypted_user_id = result_obj.get("encryptedUserId") or ""
 
-        # 构造标准的会员请求 Header，完美适配长龙 WAF
-        auth_headers = {
-            "Authorization": loongair_token,
-            "Cookie": f"SESSION={loongair_token}",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
-            "X-App-Version": "2.4.77",
-            "NESign": "[object Null]",
-            "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-            "xweb_xhr": "1",
-            "Accept": "*/*"
-        }
+        if not base64_session_id:
+            return {"ok": False, "error": "长龙返回登录成功但缺少 Session 凭据"}
 
-        # 自动拉取会员姓名、身份证与卡资产
+        auth_headers = build_app_headers(base64_session_id)
+
+        # 自动拉取会员姓名、身份证与畅飞卡资产
         remote_prof = fetch_full_user_profile(auth_headers)
-        from datetime import datetime
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        profile = {
-            "user_name": remote_prof.get("user_name") or "长龙会员",
+        old_prof = {}
+        try:
+            import db
+            old_prof = db.get_user_profile() or {}
+        except Exception:
+            pass
+
+        scg_tid = remote_prof.get("sec_card_grant_tid") or old_prof.get("sec_card_grant_tid") or ""
+        cert_num = remote_prof.get("cert_number") or old_prof.get("cert_number") or ""
+        enc_uid = remote_prof.get("encrypted_user_id") or encrypted_user_id or old_prof.get("encrypted_user_id") or ""
+
+        template = {
+            "secCardGrantTid": str(scg_tid),
+            "encryptedUserId": str(enc_uid),
+            "certNumber": str(cert_num),
             "mobile": mobile,
-            "member_level": remote_prof.get("member_level") or "乘云会员",
-            "cert_number": remote_prof.get("cert_number") or "",
-            "token": loongair_token,
-            "cookie": f"SESSION={loongair_token}",
-            "card_name": remote_prof.get("card_name") or "长龙畅飞卡",
-            "encrypted_user_id": remote_prof.get("encrypted_user_id") or encrypted_user_id,
-            "sec_card_grant_tid": remote_prof.get("sec_card_grant_tid") or "",
-            "is_verified": remote_prof.get("is_verified", 0),
-            "refresh_token": refresh_token,
+            "disabilityIDType": 1,
+            "ifNonCompany": False,
+            "tripType": 1,
+            "directionType": "",
+            "bookingScenario": 1,
+            "SaleChannel": 8,
+            "saleChannel": 8,
+            "language": "zh-cn"
+        }
+
+        profile = {
+            "user_name": remote_prof.get("user_name") if remote_prof.get("user_name") != "长龙会员" else (old_prof.get("user_name") or "长龙会员"),
+            "mobile": mobile,
+            "member_level": remote_prof.get("member_level") or old_prof.get("member_level") or "乘云会员",
+            "cert_number": cert_num,
+            "token": base64_session_id,
+            "cookie": f"SESSION={base64_session_id}",
+            "card_name": remote_prof.get("card_name") if remote_prof.get("card_name") != "长龙畅飞卡" else (old_prof.get("card_name") or "长龙畅飞卡"),
+            "encrypted_user_id": enc_uid,
+            "sec_card_grant_tid": scg_tid,
+            "is_verified": remote_prof.get("is_verified") or result_obj.get("IsCertified") or old_prof.get("is_verified") or 1,
+            "refresh_token": app_token,
             "headers": auth_headers,
+            "template": template,
             "updated_at": now_str
         }
 
         import db
         db.save_user_profile(profile)
+        _PENDING_SESSIONS.pop(mobile, None)
 
         try:
             from seccard_client import SecCardClient
-            SecCardClient().check_and_reload()
+            SecCardClient().check_and_reload(force=True)
         except Exception as e:
             print(f"[!] 热重载客户端提示: {e}")
 
         masked_mobile = profile["mobile"][:3] + "****" + profile["mobile"][-4:] if len(profile["mobile"]) == 11 else profile["mobile"]
         return {
             "ok": True,
-            "message": f"欢迎回来，{profile['user_name']}！已自动绑定会员凭证与畅飞卡。",
+            "message": f"欢迎回来，{profile['user_name']}！已通过官方 App 协议绑定会员凭证与畅飞卡。",
             "user": {
                 "user_name": profile["user_name"],
                 "mobile": masked_mobile,
@@ -300,17 +396,63 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         return {"ok": False, "error": f"{msg} (代码: {err_code})"}
 
 
-def refresh_access_token(refresh_token: str = "") -> dict:
+def keepalive_session() -> dict:
     """
-    使用持久化存储的 refreshToken 向长龙服务器无感换取新 loongairToken，
-    实现“登录一次，长期有效”的自动续期机制。
+    向长龙网关发送轻量级心跳请求 (sales_user_userDetailInfo)，
+    用于：
+    1. 刷新长龙服务端 Redis Session 的闲置超时时间 (Idle Timeout)，防止因无操作被服务端踢下线；
+    2. 实时探知当前 Session 在长龙服务端是否真正有效。
     """
     import db
-    from datetime import datetime
+    prof = db.get_user_profile() or {}
+    token = prof.get("token") or ""
+    if not token:
+        return {"ok": False, "expired": False, "reason": "no_token"}
+
+    headers = prof.get("headers") or build_app_headers(token)
+    channel_id = 8 if _is_app_headers(headers) else 76
+    params = {"SaleChannel": channel_id, "saleChannel": channel_id, "language": "zh-cn"}
+
+    res = _call_api("sales_user_userDetailInfo", params, headers, timeout=6.0)
+    if res is None:
+        # 网络波动或超时，不误判为过期
+        return {"ok": False, "expired": False, "reason": "network_timeout"}
+
+    err_code = res.get("ErrorCode")
+    if err_code == 0:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        prof["updated_at"] = now_str
+        # 若服务端下发了新的 SESSION Cookie 则同步更新
+        new_sess = res.get("_set_cookie_session")
+        if new_sess and new_sess != token:
+            prof["token"] = new_sess
+            prof["cookie"] = f"SESSION={new_sess}"
+            if isinstance(prof.get("headers"), dict):
+                prof["headers"]["Cookie"] = f"SESSION={new_sess}"
+        db.save_user_profile(prof)
+        return {"ok": True, "expired": False}
+
+    if err_code == 100001:
+        ref = refresh_access_token()
+        if ref.get("ok"):
+            return {"ok": True, "expired": False, "refreshed": True}
+        return {"ok": False, "expired": True, "error": "Session 已过期 (100001)"}
+
+    return {"ok": False, "expired": False, "error": f"ErrorCode: {err_code}"}
+
+
+def refresh_access_token(refresh_token: str = "") -> dict:
+    """
+    尝试使用持久化存储的 refreshToken 向长龙服务器换取新凭证
+    """
+    import db
     prof = db.get_user_profile() or {}
     rt = refresh_token or prof.get("refresh_token") or ""
     if not rt:
         return {"ok": False, "error": "本地数据库缺少 refreshToken，无法自动续期"}
+
+    headers = prof.get("headers") or build_app_headers(prof.get("token") or "")
+    channel_id = 8 if _is_app_headers(headers) else 76
 
     params = {
         "refreshToken": rt,
@@ -318,28 +460,26 @@ def refresh_access_token(refresh_token: str = "") -> dict:
         "userId": prof.get("user_id") or "",
         "encryptedUserId": prof.get("encrypted_user_id") or "",
         "userLoginLog": {
-            "channel": "WECHAT_MINI_PROGRAM",
-            "deviceInfo": "microsoft,windows10",
-            "clientInfo": "小程序",
-            "appVersion": "2.4.77"
+            "channel": "APP" if channel_id == 8 else "WECHAT_MINI_PROGRAM",
+            "deviceInfo": get_device_info() if channel_id == 8 else "microsoft,windows10",
+            "clientInfo": "App" if channel_id == 8 else "小程序",
+            "appVersion": "1.0.239" if channel_id == 8 else "2.4.77"
         },
-        "SaleChannel": 76,
-        "saleChannel": 76,
+        "SaleChannel": channel_id,
+        "saleChannel": channel_id,
         "language": "zh-cn"
-    }
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
-        "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-        "X-App-Version": "2.4.77",
-        "NESign": "[object Null]"
     }
 
     for method in ["/user/clientNoLogin/channel/refreshToken", "/user/client/channel/refreshToken"]:
         res = _call_api(method, params, headers, timeout=6.0)
         if res and res.get("ErrorCode") == 0:
             result_obj = _safe_parse_result(res) or {}
-            new_token = result_obj.get("loongairToken") or result_obj.get("token")
+            new_token = (
+                result_obj.get("Base64SessionID")
+                or result_obj.get("loongairToken")
+                or result_obj.get("token")
+                or res.get("_set_cookie_session")
+            )
             new_rt = result_obj.get("refreshToken") or rt
             if new_token:
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -348,16 +488,16 @@ def refresh_access_token(refresh_token: str = "") -> dict:
                 prof["refresh_token"] = new_rt
                 prof["updated_at"] = now_str
                 if isinstance(prof.get("headers"), dict):
-                    prof["headers"]["Authorization"] = new_token
+                    if channel_id != 8:
+                        prof["headers"]["Authorization"] = new_token
                     prof["headers"]["Cookie"] = f"SESSION={new_token}"
                 db.save_user_profile(prof)
-                print(f"[+] 成功通过 refreshToken 自动续期 Token: {new_token[:10]}...")
+                print(f"[+] 成功通过 refreshToken 自动续期凭证: {new_token[:10]}...")
                 try:
                     from seccard_client import SecCardClient
-                    SecCardClient().check_and_reload()
+                    SecCardClient().check_and_reload(force=True)
                 except Exception:
                     pass
                 return {"ok": True, "token": new_token, "refreshToken": new_rt}
 
     return {"ok": False, "error": "refreshToken 续期未通过或已完全失效"}
-
