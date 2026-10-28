@@ -48,7 +48,7 @@ def _call_api(method: str, params: dict, headers: dict, timeout: float = 5.0) ->
             timeout=timeout,
             proxies={"http": None, "https": None}
         )
-        if resp.status_code == 200:
+        if resp.status_code in (200, 201):
             return resp.json()
     except Exception as e:
         print(f"[LoongAirClient] 请求 {method} 提示: {e}")

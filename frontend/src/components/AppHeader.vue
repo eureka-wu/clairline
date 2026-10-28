@@ -33,9 +33,21 @@
 
       <!-- 右侧：统一高度 32px、统一对齐、统一字号的专业动作胶囊群 -->
       <div class="header-actions">
-        <!-- 1. 会员登录态胶囊 (已登录) -->
+        <!-- 1. 会员登录态胶囊 (凭据已到期，提示一键续期) -->
         <button 
-          v-if="authStatus?.is_logged_in"
+          v-if="authStatus?.is_expired"
+          type="button"
+          class="header-pill-btn expired-pill"
+          @click="$emit('open-auth')"
+          title="长龙会员凭据已到期 (单次有效24h)，点击获取验证码快速续期"
+        >
+          <span class="btn-icon-wrap" style="color:#d97706;" v-html="ICONS.phone"></span>
+          <span class="btn-label-text" style="color:#b45309; font-weight:800;">{{ authStatus.user_name || '会员' }} (已到期·点此续期)</span>
+        </button>
+
+        <!-- 1. 会员登录态胶囊 (凭据有效在线) -->
+        <button 
+          v-else-if="authStatus?.is_logged_in"
           type="button"
           class="header-pill-btn member-pill"
           @click="$emit('open-auth')"
@@ -84,7 +96,7 @@
           :title="updateInfo?.has_update ? `发现新版本 ${updateInfo.latest_version}！点击查看更新` : '当前软件版本 (点击检查更新)'"
         >
           <span class="btn-icon-wrap icon-tag" v-html="ICONS.tag"></span>
-          <span class="btn-label-text">{{ updateInfo?.has_update ? '新版可用' : (updateInfo?.current_version || 'v2.1.1') }}</span>
+          <span class="btn-label-text">{{ updateInfo?.has_update ? '新版可用' : (updateInfo?.current_version || 'v2.1.2') }}</span>
         </button>
 
 
@@ -352,6 +364,18 @@ const headerLabel = computed(() => {
   font-size: 0.7rem;
   color: #94a3b8;
   margin-left: 2px;
+}
+
+/* 凭据到期续期按钮 */
+.expired-pill {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #b45309;
+}
+.expired-pill:hover {
+  background: #fde68a;
+  border-color: #fcd34d;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
 }
 
 /* 未登录时的渐变同步按钮 */

@@ -372,7 +372,7 @@ def process_mcp_request(req: dict) -> dict:
                 },
                 "serverInfo": {
                     "name": "clairline-mcp",
-                    "version": "2.1.1"
+                    "version": "2.1.2"
                 }
             }
         }

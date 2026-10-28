@@ -40,24 +40,21 @@ import mcp_server
 from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
 from scheduler import MonitorScheduler
 
+AUTH_EXPIRED = False
+
+def mark_auth_expired():
+    global AUTH_EXPIRED
+    AUTH_EXPIRED = True
+
+def clear_auth_expired():
+    global AUTH_EXPIRED
+    AUTH_EXPIRED = False
+
 def get_auth_status() -> dict:
     prof = db.get_user_profile() or {}
     token = prof.get("token") or ""
-    is_logged_in = bool(token and len(token) > 10)
     update_time = prof.get("updated_at") or ""
     auth_preview = f"{token[:8]}...{token[-4:]}" if len(token) > 12 else (token or "无凭证")
-
-    # 智能跨天静默预续期：若进入新的一天且拥有 refreshToken，后台自动静默换新 Token
-    if is_logged_in and prof.get("refresh_token"):
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        if update_time and not update_time.startswith(today_str):
-            def _async_renew():
-                try:
-                    from loongair_client import refresh_access_token
-                    refresh_access_token()
-                except Exception:
-                    pass
-            threading.Thread(target=_async_renew, daemon=True).start()
     
     mobile = prof.get("mobile", "")
     masked_mobile = f"{mobile[:3]}****{mobile[-4:]}" if len(mobile) == 11 else (mobile or "")
@@ -65,11 +62,30 @@ def get_auth_status() -> dict:
     cert = prof.get("cert_number", "")
     masked_cert = f"{cert[:6]}********{cert[-4:]}" if len(cert) > 10 else (cert or "")
     
+    has_profile = bool(mobile or prof.get("user_name"))
+    
+    # 判定是否过期：捕获到 100001/403 或时间跨天超过 18 小时
+    is_expired = False
+    if AUTH_EXPIRED and has_profile:
+        is_expired = True
+    elif token and update_time:
+        try:
+            dt = datetime.strptime(update_time, "%Y-%m-%d %H:%M:%S")
+            diff_hours = (datetime.now() - dt).total_seconds() / 3600.0
+            if diff_hours >= 18.0:
+                is_expired = True
+        except Exception:
+            pass
+
+    is_logged_in = bool(token and len(token) > 10 and not is_expired)
+
     return {
         "ok": True,
         "is_logged_in": is_logged_in,
+        "is_expired": is_expired,
         "user_name": prof.get("user_name", "长龙会员"),
         "mobile": masked_mobile,
+        "raw_mobile": mobile,
         "cert_number": masked_cert,
         "member_level": prof.get("member_level", "乘云会员"),
         "card_name": prof.get("card_name", "长龙畅飞卡"),
@@ -79,6 +95,7 @@ def get_auth_status() -> dict:
     }
 
 def reset_user_auth() -> dict:
+    clear_auth_expired()
     db.save_user_profile({
         "user_name": "长龙会员",
         "mobile": "",
@@ -104,7 +121,7 @@ def reset_user_auth() -> dict:
 db.init_db()
 
 PORT = 3000
-APP_VERSION = "v2.1.1"
+APP_VERSION = "v2.1.2"
 GITHUB_REPO = "eureka-wu/clairline"
 client = SecCardClient()
 scheduler = MonitorScheduler(client)
@@ -359,29 +376,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     db.save_route_calendar(frm, to, cal)
                 except Exception as ex:
                     err_msg = str(ex)
-                    if "100001" in err_msg or "403" in err_msg or "未登录" in err_msg:
-                        try:
-                            from loongair_client import refresh_access_token
-                            ref_res = refresh_access_token()
-                            if ref_res.get("ok"):
-                                client.check_and_reload(force=True)
-                                cal = client.get_calendar(from_code, to_code)
-                                db.save_route_calendar(frm, to, cal)
-                                dates = db.get_available_dates(frm, to)
-                                self.send_json({
-                                    "ok": True,
-                                    "from": frm,
-                                    "to": to,
-                                    "fromCode": from_code,
-                                    "toCode": to_code,
-                                    "availableDates": dates,
-                                    "count": len(dates),
-                                    "refreshed": force_refresh
-                                })
-                                return
-                        except Exception:
-                            pass
-                        self.send_json({"ok": False, "error": "长龙会员登录凭据已过期 (100001)，请在右上角使用【手机验证码登录】重新登录"}, 401)
+                    if "100001" in err_msg or "403" in err_msg or "未登录" in err_msg or "未登入" in err_msg:
+                        mark_auth_expired()
+                        self.send_json({"ok": False, "error": "长龙会员登录凭据已过期 (100001)，请在右上角使用【手机验证码登录】重新续期", "authExpired": True}, 401)
                     else:
                         self.send_json({"ok": False, "error": f"长龙接口请求异常: {err_msg}"}, 500)
                     return
@@ -661,10 +658,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 client.get_calendar("杭州", "深圳")
             except Exception as auth_err:
                 err_text = str(auth_err)
-                if "100001" in err_text or "403" in err_text or "未登录" in err_text:
+                if "100001" in err_text or "403" in err_text or "未登录" in err_text or "未登入" in err_text:
+                    mark_auth_expired()
                     self.send_json({
                         "ok": False,
-                        "error": "长龙会员登录凭据已失效，请在右上角使用【手机验证码登录】重新登录！"
+                        "error": "长龙会员登录凭据已失效，请在右上角使用【手机验证码登录】重新续期！",
+                        "authExpired": True
                     }, 401)
                     return
                 elif "scgtid" in err_text.lower() or not client.template.get("secCardGrantTid"):
@@ -719,6 +718,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             from loongair_client import login_by_mobile_code
             res = login_by_mobile_code(mobile, code, verify_id)
             if res.get("ok"):
+                clear_auth_expired()
                 client.check_and_reload()
             self.send_json(res, 200 if res.get("ok") else 400)
             return

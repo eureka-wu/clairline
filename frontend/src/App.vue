@@ -429,8 +429,8 @@ if (typeof window !== 'undefined') {
 
 const updateInfo = ref({
   has_update: false,
-  current_version: 'v2.1.1',
-  latest_version: 'v2.1.1',
+  current_version: 'v2.1.2',
+  latest_version: 'v2.1.2',
   release_name: '',
   release_notes: '',
   page_url: 'https://github.com/eureka-wu/clairline/releases',
@@ -518,7 +518,7 @@ async function refreshAuthStatus(directData) {
     if (res && res.ok) {
       authStatus.value = res;
       try {
-        if (res.is_logged_in) {
+        if (res.is_logged_in && !res.is_expired) {
           localStorage.setItem('clairline_auth_cache', JSON.stringify(res));
         } else {
           localStorage.removeItem('clairline_auth_cache');
@@ -939,7 +939,8 @@ async function handleRefreshCalendar({ from, to, done }) {
       showToast(`【${from} ➔ ${to}】日历已更新！共 ${res.availableDates.length} 天有票`);
     } else {
       const err = res.error || '';
-      if (err.includes('过期') || err.includes('100001') || err.includes('未登录') || err.includes('失效')) {
+      if (err.includes('过期') || err.includes('100001') || err.includes('未登录') || err.includes('未登入') || err.includes('失效') || res.authExpired) {
+        await refreshAuthStatus();
         openAuthModal(true);
         return;
       }
@@ -947,7 +948,8 @@ async function handleRefreshCalendar({ from, to, done }) {
     }
   } catch (e) {
     const msg = e.message || '';
-    if (msg.includes('过期') || msg.includes('100001') || msg.includes('未登录') || msg.includes('失效')) {
+    if (msg.includes('过期') || msg.includes('100001') || msg.includes('未登录') || msg.includes('未登入') || msg.includes('失效')) {
+      await refreshAuthStatus();
       openAuthModal(true);
       return;
     }

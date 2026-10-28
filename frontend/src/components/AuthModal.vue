@@ -13,31 +13,46 @@
       <!-- 模态框主体 -->
       <div class="modal-body" style="padding:16px 20px;">
         
-        <!-- 已登录时的会员状态卡片 (未登录时隐藏，保持界面清爽) -->
+        <!-- 会员身份简要信息卡片 (有历史记录时始终展示) -->
         <div 
-          v-if="effectiveAuth?.is_logged_in"
-          style="padding:12px 14px; border-radius:8px; margin-bottom:14px; background:#f0fdf4; border:1px solid #bbf7d0;"
+          v-if="effectiveAuth?.user_name && effectiveAuth?.user_name !== '长龙会员' && effectiveAuth?.mobile"
+          style="padding:12px 14px; border-radius:8px; margin-bottom:14px;"
+          :style="effectiveAuth?.is_expired 
+            ? 'background:#fffbeb; border:1px solid #fde68a;' 
+            : 'background:#f0fdf4; border:1px solid #bbf7d0;'"
         >
           <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; align-items:center; gap:10px;">
-              <span style="width:10px; height:10px; border-radius:50%; display:inline-block; background:#10b981;"></span>
+              <span 
+                style="width:10px; height:10px; border-radius:50%; display:inline-block;"
+                :style="effectiveAuth?.is_expired ? 'background:#f59e0b;' : 'background:#10b981;'"
+              ></span>
               <div>
                 <div style="font-size:0.85rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
                   <span>{{ effectiveAuth.user_name }}</span>
                   <span 
-                    v-if="effectiveAuth.is_verified || effectiveAuth.user_name !== '长龙会员'"
+                    v-if="effectiveAuth.is_expired"
+                    style="font-size:0.65rem; padding:1px 5px; border-radius:3px; background:#fef3c7; color:#b45309; font-weight:700;"
+                  >
+                    凭据已到期
+                  </span>
+                  <span 
+                    v-else-if="effectiveAuth.is_verified"
                     style="font-size:0.65rem; padding:1px 5px; border-radius:3px; background:#dcfce7; color:#15803d; font-weight:700;"
                   >
                     已实名
                   </span>
                 </div>
                 <div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">
-                  手机: {{ effectiveAuth.mobile || '已同步' }} · 更新: {{ effectiveAuth.update_time || '刚刚' }}
+                  手机: {{ effectiveAuth.mobile || '已同步' }} · 上次更新: {{ effectiveAuth.update_time || '刚刚' }}
                 </div>
               </div>
             </div>
             <span 
-              style="font-size:0.72rem; padding:3px 9px; border-radius:4px; background:#e0f2fe; color:#0284c7; font-weight:800; display:inline-flex; align-items:center; gap:4px;"
+              style="font-size:0.72rem; padding:3px 9px; border-radius:4px; font-weight:800; display:inline-flex; align-items:center; gap:4px;"
+              :style="effectiveAuth?.is_expired 
+                ? 'background:#fef3c7; color:#b45309;' 
+                : 'background:#e0f2fe; color:#0284c7;'"
             >
               <span v-html="ICONS.crown" style="display:inline-flex;"></span>
               <span>{{ effectiveAuth.member_level || '乘云会员' }}</span>
@@ -45,9 +60,9 @@
           </div>
         </div>
 
-        <!-- 场景 1：已经登录且没有主动切换账号 -->
+        <!-- 场景 1：凭据有效在线且未过期 -->
         <div 
-          v-if="effectiveAuth?.is_logged_in && !showResyncFlow"
+          v-if="effectiveAuth?.is_logged_in && !effectiveAuth?.is_expired && !showResyncFlow"
           style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:18px 14px; text-align:center;"
         >
           <div style="display:inline-flex; margin-bottom:6px; color:#10b981;" v-html="ICONS.checkCircle"></div>
@@ -57,22 +72,47 @@
           <div style="font-size:0.75rem; color:#065f46; line-height:1.5; margin-bottom:14px;">
             已绑定会员「{{ effectiveAuth.user_name }}」，畅飞卡（{{ effectiveAuth.card_name || '长龙畅飞卡' }}）剩余机位与普查功能处于就绪状态。
           </div>
-          <button 
-            type="button" 
-            class="btn-glass" 
-            style="font-size:0.75rem; color:#0284c7; border-color:#bae6fd; padding:5px 14px; background:#ffffff; display:inline-flex; align-items:center; gap:5px; margin:0 auto;"
-            @click="showResyncFlow = true"
-          >
-            <span v-html="ICONS.refresh" style="display:inline-flex;"></span>
-            <span>切换其他手机号登录</span>
-          </button>
+          <div style="display:flex; justify-content:center; gap:8px;">
+            <button 
+              type="button" 
+              class="btn-glass" 
+              style="font-size:0.75rem; color:#0284c7; border-color:#bae6fd; padding:5px 14px; background:#ffffff; display:inline-flex; align-items:center; gap:5px;"
+              @click="handleRenewClick"
+            >
+              <span v-html="ICONS.refresh" style="display:inline-flex;"></span>
+              <span>重新验证续期</span>
+            </button>
+            <button 
+              type="button" 
+              class="btn-glass" 
+              style="font-size:0.75rem; color:var(--text-muted); border-color:#e2e8f0; padding:5px 12px; background:#ffffff; display:inline-flex; align-items:center; gap:5px;"
+              @click="handleSwitchAccountClick"
+            >
+              <span>换其他手机号</span>
+            </button>
+          </div>
         </div>
 
-        <!-- 场景 2：输入手机号与验证码 (纯净平铺，无套娃边框与重复标题) -->
+        <!-- 场景 2：输入手机号与验证码 (过期一键续期或首次登录) -->
         <div v-else style="padding: 4px 0 2px;">
+          <!-- 若处于过期续期状态，给出清晰提示条 -->
+          <div 
+            v-if="effectiveAuth?.is_expired || props.autoStart" 
+            style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:9px 12px; margin-bottom:12px; display:flex; align-items:flex-start; gap:8px; font-size:0.75rem; color:#b45309; line-height:1.4;"
+          >
+            <span style="font-size:1rem; line-height:1;">⚠️</span>
+            <div>
+              <div style="font-weight:700;">会员凭据已到期 (长龙短效凭据单次有效约24h)</div>
+              <div style="color:#92400e; margin-top:2px;">已自动预填您的绑定手机号，获取验证码后即可一键快速续期！</div>
+            </div>
+          </div>
+
           <!-- 手机号输入 -->
           <div style="margin-bottom:14px;">
-            <label style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:6px; font-weight:600;">会员手机号</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">会员手机号</label>
+              <span v-if="isPreFilledMobile" style="font-size:0.7rem; color:#0284c7; font-weight:600;">已自动填入当前账号</span>
+            </div>
             <input 
               type="tel" 
               v-model="mobile" 
@@ -109,7 +149,7 @@
             </div>
           </div>
 
-          <!-- 登录按钮 -->
+          <!-- 登录/续期按钮 -->
           <button 
             type="button" 
             class="btn-primary" 
@@ -118,7 +158,12 @@
             @click="handleSmsLogin"
           >
             <span v-html="ICONS.check" style="display:inline-flex;"></span>
-            <span>{{ isSubmittingLogin ? '正在验证并同步会员...' : '立即登录并同步会员' }}</span>
+            <span>
+              {{ isSubmittingLogin 
+                ? '正在验证并同步会员...' 
+                : (effectiveAuth?.is_expired ? '立即验证并完成续期' : '立即登录并同步会员') 
+              }}
+            </span>
           </button>
 
           <!-- 挂载易盾组件的隐藏节点 -->
@@ -130,7 +175,7 @@
       <!-- 模态框底部 -->
       <div class="modal-footer" style="justify-content: space-between; align-items:center;">
         <button 
-          v-if="effectiveAuth?.is_logged_in"
+          v-if="effectiveAuth?.mobile || effectiveAuth?.is_logged_in"
           type="button" 
           class="btn-reset-auth" 
           :disabled="isResettingAuth"
@@ -180,11 +225,45 @@ const effectiveAuth = computed(() => {
   return localAuth.value || props.authStatus || {};
 });
 
+const isPreFilledMobile = computed(() => {
+  const target = props.authStatus?.raw_mobile || localStorage.getItem('clairline_last_mobile') || '';
+  return target && mobile.value === target;
+});
+
+function handleRenewClick() {
+  showResyncFlow.value = true;
+  const target = props.authStatus?.raw_mobile || localStorage.getItem('clairline_last_mobile') || '';
+  if (target) {
+    mobile.value = target;
+  }
+}
+
+function handleSwitchAccountClick() {
+  showResyncFlow.value = true;
+  mobile.value = '';
+  smsCode.value = '';
+}
+
 watch(() => props.visible, (val) => {
   if (val) {
     localAuth.value = null;
-    showResyncFlow.value = false;
     emit('refresh-auth');
+
+    const isExpired = Boolean(props.authStatus?.is_expired || props.autoStart);
+    const isLoggedIn = Boolean(props.authStatus?.is_logged_in);
+
+    // 如果过期或未登录，直接显示手机号验证码输入表单
+    if (isExpired || !isLoggedIn) {
+      showResyncFlow.value = true;
+    } else {
+      showResyncFlow.value = false;
+    }
+
+    // 自动预填手机号
+    const targetMobile = props.authStatus?.raw_mobile || localStorage.getItem('clairline_last_mobile') || '';
+    if (targetMobile && (!mobile.value || mobile.value.length !== 11)) {
+      mobile.value = targetMobile;
+    }
   }
 });
 
@@ -229,8 +308,6 @@ function handleTriggerCaptcha() {
       width: 320,
       onVerify: async function (err, data) {
         if (err) {
-          // 易盾滑块/点选未通过 (例如 300 unpass error)
-          // 易盾内部会自动刷新并提示用户重新验证，绝不弹窗打断用户连续操作
           return;
         }
         const validate = data?.validate || '';
@@ -245,7 +322,6 @@ function handleTriggerCaptcha() {
             if (typeof window !== 'undefined' && window.$toast) {
               window.$toast('短信验证码已下发，请查收');
             }
-            // 自动聚焦到短信验证码输入框，体验丝滑无阻断
             setTimeout(() => {
               const codeInput = document.querySelector('.sms-code-input');
               if (codeInput) codeInput.focus();
@@ -287,13 +363,17 @@ async function handleSmsLogin() {
     const res = await loginWithSmsCode(m, c, verifyId.value);
     if (res.ok) {
       if (typeof window !== 'undefined' && window.$toast) {
-        window.$toast(res.message || '欢迎回来！长龙会员登录成功');
+        window.$toast(res.message || '长龙会员凭证续期成功！');
       }
       showResyncFlow.value = false;
       smsCode.value = '';
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('clairline_last_mobile', m);
+      }
       if (res.user) {
         localAuth.value = {
           is_logged_in: true,
+          is_expired: false,
           ...res.user
         };
       }
@@ -301,10 +381,10 @@ async function handleSmsLogin() {
       emit('synced');
       closeModal();
     } else {
-      notify('登录失败', res.error || '验证码错误或已过期', 'error');
+      notify('验证失败', res.error || '验证码错误或已过期', 'error');
     }
   } catch (e) {
-    notify('登录异常', e.message || '网络连接超时', 'error');
+    notify('验证异常', e.message || '网络连接超时', 'error');
   } finally {
     isSubmittingLogin.value = false;
   }
@@ -315,7 +395,7 @@ async function handleResetAuth() {
   if (typeof window !== 'undefined' && window.$confirm) {
     confirmed = await window.$confirm({
       title: '确定清空会员登录凭据？',
-      message: '此操作将彻底清除本地保存的会员身份、畅飞卡授权与自动续期 Token。\n\n清空后应用将还原为初始未登录状态，需要重新输入手机号登录。',
+      message: '此操作将彻底清除本地保存的会员身份、畅飞卡授权与登录 Token。\n\n清空后应用将还原为初始未登录状态，需要重新输入手机号登录。',
       type: 'error',
       confirmText: '确定清空',
       cancelText: '取消'
@@ -336,9 +416,8 @@ async function handleResetAuth() {
       showResyncFlow.value = false;
       mobile.value = '';
       smsCode.value = '';
-      localAuth.value = { is_logged_in: false, user_name: '尚未登录长龙会员' };
+      localAuth.value = { is_logged_in: false, is_expired: false, user_name: '尚未登录长龙会员' };
       emit('refresh-auth', localAuth.value);
-      // 清空操作切忌触发 emit('synced')，避免误触发登录成功后的全网巡检普查流水线
     } else {
       notify('重置提示', res.error || '清空失败', 'error');
     }
@@ -457,7 +536,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  /* iOS 关键优化：输入框 font-size >= 16px，防止 Safari 聚焦时自动缩放页面 */
   .sms-input {
     font-size: 16px !important;
     padding: 10px 12px;
