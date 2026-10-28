@@ -109,19 +109,36 @@ class SecCardClient:
         try:
             import db
             prof = db.get_user_profile()
-            if prof and prof.get("token"):
-                token = prof["token"]
-                # 注入标准全量请求头，完美穿透长龙官方 WAF
-                self.headers = {
-                    "Authorization": token,
-                    "Cookie": f"SESSION={token}",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
-                    "X-App-Version": "2.4.77",
-                    "NESign": "[object Null]",
-                    "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
-                    "xweb_xhr": "1",
-                    "Accept": "*/*"
-                }
+            if prof and (prof.get("token") or prof.get("cookie")):
+                token = prof.get("token") or ""
+                custom_headers = prof.get("headers") or {}
+                
+                # 智能识别是否为长龙官方 App 凭据
+                is_app = False
+                if custom_headers and isinstance(custom_headers, dict):
+                    ua = str(custom_headers.get("User-Agent") or custom_headers.get("user-agent") or "")
+                    if "finogeeks" in ua.lower() or "iphone" in ua.lower() or any("appversion" in k.lower() for k in custom_headers):
+                        is_app = True
+
+                if custom_headers and isinstance(custom_headers, dict) and len(custom_headers) >= 3:
+                    self.headers = dict(custom_headers)
+                    if token and "Authorization" not in self.headers and not is_app:
+                        self.headers["Authorization"] = token
+                    if token and "Cookie" not in self.headers:
+                        self.headers["Cookie"] = f"SESSION={token}"
+                else:
+                    self.headers = {
+                        "Authorization": token,
+                        "Cookie": f"SESSION={token}",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541721) XWEB/19027",
+                        "X-App-Version": "2.4.77",
+                        "NESign": "[object Null]",
+                        "Referer": "https://servicewechat.com/wx0a991d42d653886e/605/page-frame.html",
+                        "xweb_xhr": "1",
+                        "Accept": "*/*"
+                    }
+
+                channel_id = 8 if is_app else 76
 
                 template = prof.get("template") or {}
                 if prof.get("sec_card_grant_tid"):
@@ -137,8 +154,8 @@ class SecCardClient:
                 template.setdefault("tripType", 1)
                 template.setdefault("directionType", "")
                 template.setdefault("bookingScenario", 1)
-                template.setdefault("SaleChannel", 76)
-                template.setdefault("saleChannel", 76)
+                template["SaleChannel"] = channel_id
+                template["saleChannel"] = channel_id
                 template.setdefault("language", "zh-cn")
                 self.template = template
                 return
@@ -155,14 +172,8 @@ class SecCardClient:
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # 核心机制：每天北京时间 00:00 自动将凭证标记为过期清空 (微信小程序 Session 自然日失效)
+            # 凭据有效性统一交由长龙服务端真实 100001/403 探针判定，不再盲目跨天本地清空
             up_time = data.get("update_time", "")
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            if up_time and up_time[:10] != today_str:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ 凭据更新于 {up_time[:10]}，已跨越北京时间 00:00 自然日失效周期，自动清空旧凭证，请同步最新长龙登录。")
-                self.headers = {}
-                self.template = {}
-                return
 
             headers = data.get("headers", {})
             params = data.get("search_template") or data.get("template", {})

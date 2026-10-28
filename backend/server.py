@@ -64,11 +64,18 @@ def get_auth_status() -> dict:
     
     has_profile = bool(mobile or prof.get("user_name"))
     
-    # 判定是否过期：捕获到 100001/403 或时间跨天超过 18 小时
+    # 判定是否过期：捕获到 100001/403 或微信短效凭据跨天超过 18 小时 (App 长效凭据以服务端实时探针为准)
     is_expired = False
+    is_app = False
+    custom_headers = prof.get("headers") or {}
+    if custom_headers and isinstance(custom_headers, dict):
+        ua = str(custom_headers.get("User-Agent") or custom_headers.get("user-agent") or "")
+        if "finogeeks" in ua.lower() or "iphone" in ua.lower() or any("appversion" in k.lower() for k in custom_headers):
+            is_app = True
+
     if AUTH_EXPIRED and has_profile:
         is_expired = True
-    elif token and update_time:
+    elif token and update_time and not is_app:
         try:
             dt = datetime.strptime(update_time, "%Y-%m-%d %H:%M:%S")
             diff_hours = (datetime.now() - dt).total_seconds() / 3600.0
