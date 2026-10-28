@@ -34,10 +34,10 @@
         </div>
 
         <!-- 详细说明或更新日志 -->
-        <div v-if="updateInfo?.has_update && updateInfo?.release_notes" class="release-notes-section">
+        <div v-if="updateInfo?.has_update && formattedNotes" class="release-notes-section">
           <div class="section-title">更新说明与新特性：</div>
           <div class="release-notes-box">
-            <pre class="notes-pre">{{ updateInfo.release_notes }}</pre>
+            <pre class="notes-pre">{{ formattedNotes }}</pre>
           </div>
         </div>
 
@@ -96,6 +96,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { ICONS } from '../data/icons.js';
 
 const props = defineProps({
@@ -104,6 +105,19 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'ignore-version']);
+
+const formattedNotes = computed(() => {
+  const raw = props.updateInfo?.release_notes || '';
+  if (!raw) return '';
+  // 截取分隔符 --- 之前的核心更新内容，并清理 Markdown 标记符号
+  const mainPart = raw.split(/\n---\r?\n/)[0] || raw;
+  return mainPart
+    .split(/\r?\n/)
+    .map(line => line.replace(/^#+\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim())
+    .filter((line, idx, arr) => !(line === '' && (idx === 0 || arr[idx - 1] === '')))
+    .join('\n')
+    .trim();
+});
 
 function handleIgnore() {
   const ver = props.updateInfo?.latest_version;
@@ -135,8 +149,8 @@ function handleIgnore() {
 
 /* 模态框卡片主壳：100% 纯白实底背景，绝无穿透！立体阴影与圆角 */
 .update-modal-card {
-  width: 500px;
-  max-width: 92vw;
+  width: 560px;
+  max-width: 94vw;
   background: #ffffff !important;
   border: 1px solid #cbd5e1;
   border-radius: 14px;
@@ -293,9 +307,9 @@ function handleIgnore() {
 .notes-pre {
   margin: 0;
   font-family: inherit;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   color: #334155;
-  line-height: 1.6;
+  line-height: 1.65;
   white-space: pre-wrap;
 }
 
@@ -329,17 +343,18 @@ function handleIgnore() {
 
 /* 底部操作栏 */
 .update-modal-footer {
-  height: 56px;
+  min-height: 58px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
-  padding: 0 20px;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .btn-github-link {
-  height: 32px;
+  height: 34px;
   padding: 0 12px;
   border-radius: 8px;
   background: #ffffff;
@@ -351,6 +366,8 @@ function handleIgnore() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 
@@ -366,6 +383,7 @@ function handleIgnore() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .footer-btn-icon :deep(svg) {
@@ -377,16 +395,19 @@ function handleIgnore() {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .btn-ignore {
-  height: 32px;
+  height: 34px;
   padding: 0 10px;
   border-radius: 8px;
   background: transparent;
   border: 1px solid transparent;
   color: #94a3b8;
   font-size: 0.74rem;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -397,14 +418,16 @@ function handleIgnore() {
 }
 
 .btn-cancel {
-  height: 32px;
-  padding: 0 16px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 8px;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   color: #334155;
   font-size: 0.78rem;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -416,7 +439,7 @@ function handleIgnore() {
 }
 
 .btn-download {
-  height: 32px;
+  height: 34px;
   padding: 0 16px;
   border-radius: 8px;
   background: linear-gradient(135deg, #10b981, #059669);
@@ -428,6 +451,8 @@ function handleIgnore() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
   transition: all 0.15s ease;
