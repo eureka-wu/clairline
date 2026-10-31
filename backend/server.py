@@ -36,7 +36,6 @@ if str(BACKEND_DIR) not in sys.path:
 import auto_patrol
 import threading
 import db
-import mcp_server
 from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
 from scheduler import MonitorScheduler
 
@@ -83,45 +82,6 @@ def get_current_user_from_request(handler) -> tuple[dict | None, str]:
         if user:
             return user, token
     return None, token
-
-def get_configured_mcp_key() -> str:
-    """获取机主配置的 MCP 专属访问密钥"""
-    return (os.environ.get("MCP_KEY") or os.environ.get("CLAIRLINE_MCP_KEY") or os.environ.get("MCP_TOKEN") or "").strip()
-
-def verify_mcp_auth(handler) -> tuple[bool, str]:
-    """
-    严格校验 MCP 访问权限，杜绝公网未授权白嫖机主会员 Token
-    支持：
-    1. 环境变量 MCP_KEY / CLAIRLINE_MCP_KEY 静态私钥
-    2. 平台有效登录用户的 Session Token (机主网页端登录态)
-    3. HTTP Header: Authorization: Bearer <key>
-    4. URL Query: ?key=<key> 或 ?token=<key>
-    """
-    configured_key = get_configured_mcp_key()
-    provided_key = extract_request_token(handler)
-    if not provided_key:
-        try:
-            parsed = urllib.parse.urlparse(handler.path)
-            qs = urllib.parse.parse_qs(parsed.query)
-            provided_key = qs.get("key", [""])[0].strip() or qs.get("token", [""])[0].strip()
-        except Exception:
-            pass
-
-    # 1. 如果匹配机主在系统配置的专属 MCP_KEY
-    if configured_key and provided_key and (provided_key == configured_key):
-        return True, "mcp_key_authenticated"
-
-    # 2. 如果匹配当前已登录用户的有效 Session Token
-    if provided_key:
-        user = db.get_user_by_session_token(provided_key)
-        if user and user.get("token"):
-            return True, "user_session_authenticated"
-
-    # 3. 未通过认证拦截
-    if configured_key:
-        return False, "请提供正确的 MCP_KEY (在请求头携带 Authorization: Bearer <KEY> 或在 URL 附加 ?key=<KEY>)"
-
-    return False, "MCP 接口已启用安全加固保护：未授权的公网调用已被拦截。请在请求中配置有效机主秘钥 (Authorization: Bearer <key> 或 ?key=<key>)。"
 
 def get_auth_status(user: dict | None = None) -> dict:
     """获取当前请求用户的会员认证与畅飞卡登录态 (多用户隔离)"""
@@ -607,31 +567,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({
                 "ok": True,
                 "github": f"https://github.com/{GITHUB_REPO}",
-                "repo": GITHUB_REPO,
-                "mcp": {
-                    "enabled": True,
-                    "requires_auth": True
-                }
+                "repo": GITHUB_REPO
             })
-            return
-
-        elif path in ("/sse", "/api/mcp/sse"):
-            is_ok, reason = verify_mcp_auth(self)
-            if not is_ok:
-                self.send_json({"ok": False, "error": f"401 Unauthorized: {reason}"}, 401)
-                return
-
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            try:
-                self.wfile.write(b"event: endpoint\ndata: /api/mcp/rpc\n\n")
-                self.wfile.flush()
-            except Exception:
-                pass
             return
 
         # 针对未匹配的 API 请求，直接返回标准 404 JSON，避免落入 SPA 静态 fallback
@@ -870,23 +807,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({"ok": False, "error": f"登录服务异常: {str(e)}"}, 500)
             return
 
-        elif path in ("/api/mcp/rpc", "/mcp/rpc", "/rpc"):
-            is_ok, reason = verify_mcp_auth(self)
-            if not is_ok:
-                self.send_json({
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32000,
-                        "message": f"401 Unauthorized: {reason}"
-                    }
-                }, 401)
-                return
-
-            res = mcp_server.process_mcp_request(body)
-            self.send_json(res if res is not None else {})
-            return
-
-
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
 
     def do_DELETE(self):
@@ -914,7 +834,6 @@ def run():
     print(f"✈️ 长龙航空畅飞卡前后端统一服务已启动！")
     print(f"🌐 本地 Web 访问: http://{display_host}:{port}")
     print(f"📡 实时 API 就绪: http://{display_host}:{port}/api/status")
-    print(f"🤖 MCP 智能助手: http://{display_host}:{port}/sse (JSON-RPC: /api/mcp/rpc)")
     print(f"🛡️ 后台自动轮询: 已彻底关闭 (仅响应用户前端点击与按需查票)")
     print("=======================================================\n")
     if sys.stdout and hasattr(sys.stdout, "flush"):
