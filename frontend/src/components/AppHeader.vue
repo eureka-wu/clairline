@@ -87,20 +87,6 @@
           <span class="btn-label-text">{{ headerLabel }}</span>
         </button>
 
-        <!-- 3. 检查更新与版本展示胶囊 -->
-        <button 
-          type="button" 
-          class="header-pill-btn version-pill"
-          :class="{ 'has-new-version': updateInfo?.has_update }"
-          @click="$emit('open-update')"
-          :title="updateInfo?.has_update ? `发现新版本 ${updateInfo.latest_version}！点击查看更新` : '当前软件版本 (点击检查更新)'"
-        >
-          <span class="btn-icon-wrap icon-tag" v-html="ICONS.tag"></span>
-          <span class="btn-label-text">{{ updateInfo?.has_update ? '新版可用' : (updateInfo?.current_version || 'v2.1.3') }}</span>
-        </button>
-
-
-
         <!-- 4. GitHub 官方开源仓库链接 -->
         <a 
           href="https://github.com/eureka-wu/clairline" 
@@ -436,54 +422,80 @@ const headerLabel = computed(() => {
 
 /* 移动端专属自适应导航 */
 @media (max-width: 768px) {
+  .app-header {
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
   .header-inner {
-    padding: 6px 10px;
-    height: 48px;
+    padding: 0 8px !important;
+    height: 48px !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    gap: 6px !important;
   }
 
   .brand-title {
-    display: none;
+    display: none !important;
   }
 
   .brand-area {
-    gap: 8px;
+    gap: 6px !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+  }
+
+  .brand-logo-card {
+    width: 28px !important;
+    height: 28px !important;
+    flex-shrink: 0 !important;
   }
 
   .tab-segmented {
-    height: 30px;
+    height: 30px !important;
   }
 
   .tab-btn {
-    height: 26px;
-    padding: 0 8px;
-    font-size: 0.74rem;
-    gap: 4px;
+    height: 26px !important;
+    padding: 0 7px !important;
+    font-size: 0.72rem !important;
+    gap: 3px !important;
   }
 
-  /* 隐藏 GitHub 外链以释放横向空间 */
-  .github-pill {
+  /* 隐藏 GitHub 外链与版本号以彻底释放横向空间，绝不撑开屏幕 */
+  .github-pill,
+  .version-pill {
     display: none !important;
   }
 
   .header-actions {
-    gap: 6px;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
   }
 
   .header-pill-btn {
-    height: 30px;
-    padding: 0 8px;
-    font-size: 0.72rem;
+    height: 30px !important;
+    padding: 0 6px !important;
+    font-size: 0.71rem !important;
+  }
+
+  .login-pill .btn-label-text {
+    font-size: 0.71rem !important;
+    white-space: nowrap !important;
   }
 
   /* 会员胶囊在小屏只保留姓名 */
   .member-pill .member-level-tag,
   .member-pill .member-sub-info {
-    display: none;
+    display: none !important;
   }
 
   /* 巡检胶囊在小屏仅保留雷达图标 */
   .patrol-pill .btn-label-text {
-    display: none;
+    display: none !important;
   }
 }
 </style>
