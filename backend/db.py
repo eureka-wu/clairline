@@ -13,6 +13,7 @@
 from __future__ import annotations
 import sqlite3
 import json
+import re
 import sys
 from pathlib import Path
 from datetime import datetime
