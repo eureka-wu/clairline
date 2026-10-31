@@ -170,12 +170,17 @@ def adapt_sql_for_mysql(sql: str) -> str:
     sql = re.sub(r'ON\s+CONFLICT\s*\([^\)]*\)\s*DO\s+UPDATE\s+SET', 'ON DUPLICATE KEY UPDATE', sql, flags=re.IGNORECASE)
     # 5. 替换 excluded.col_name -> VALUES(col_name)
     sql = re.sub(r'excluded\.([a-zA-Z0-9_]+)', r'VALUES()', sql, flags=re.IGNORECASE)
-    # 6. 替换 PRAGMA table_info(xxx) -> SHOW COLUMNS FROM xxx
+    # 6. 解决 MySQL 报错 1101: BLOB/TEXT 字段禁止设置 DEFAULT 默认值
+    # 带有 json/token/cookie/msg/summary 的大文本字段转为 TEXT (剔除 DEFAULT 部分)
+    sql = re.sub(r'([a-zA-Z0-9_]*(?:json|token|cookie|msg|summary)[a-zA-Z0-9_]*)\s+TEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+[^\s,\)]+', r'\1 TEXT', sql, flags=re.IGNORECASE)
+    # 其余带 DEFAULT 的普通文本字段转换为 VARCHAR(255)
+    sql = re.sub(r'\bTEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+([^\s,\)]+)', r'VARCHAR(255)\1 DEFAULT \2', sql, flags=re.IGNORECASE)
+    # 7. 替换 PRAGMA table_info(xxx) -> SHOW COLUMNS FROM xxx
     pragma_match = re.search(r'PRAGMA\s+table_info\s*\(\s*([a-zA-Z0-9_]+)\s*\)', sql, flags=re.IGNORECASE)
     if pragma_match:
         table_name = pragma_match.group(1)
         return f"SHOW COLUMNS FROM `{table_name}`"
-    # 7. 替换占位符 ? 为 %s
+    # 8. 替换占位符 ? 为 %s
     sql = sql.replace('?', '%s')
     return sql
 
