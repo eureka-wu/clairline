@@ -161,8 +161,7 @@ def parse_mysql_url(url: str) -> dict:
 def adapt_sql_for_mysql(sql: str) -> str:
     """将标准/SQLite SQL 自适应转译为标准 MySQL 8.0/5.7 语法"""
     # 0. 剔除 SQL 单行注释，防止注释中的特殊字符（如 (?)）被误替换为占位符 %s
-    sql = re.sub(r'--[^
-]*', '', sql)
+    sql = re.sub(r'--.*$', '', sql, flags=re.MULTILINE)
     # 0.1 替换 CREATE INDEX IF NOT EXISTS 为 CREATE INDEX (MySQL 语法兼容)
     sql = re.sub(r'CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS', 'CREATE INDEX', sql, flags=re.IGNORECASE)
     # 1. 替换自增主键语法
