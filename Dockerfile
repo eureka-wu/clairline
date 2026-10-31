@@ -30,7 +30,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Docker 容器纯粹作为无头 (Headless) Web API 与 MCP 智能服务运行
 # 仅需 requests, bottle, Pillow，彻底剔除桌面端专用的 pyinstaller 与 pywebview (GUI)
 # 避免在 ARM64 QEMU 下触发漫长的 C 语言源码编译
-RUN pip install --no-cache-dir requests>=2.31.0 bottle>=0.12.25 Pillow>=10.0.0
+RUN pip install --no-cache-dir requests>=2.31.0 bottle>=0.12.25 Pillow>=10.0.0 pymysql>=1.1.0 cryptography>=42.0.0
 
 # 复制后端核心逻辑
 COPY backend/ /app/backend/

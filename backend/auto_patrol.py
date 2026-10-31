@@ -45,9 +45,9 @@ DEFAULT_TOP_30_HOT_ROUTES: list[tuple[str, str]] = [
 ]
 
 def load_hot_routes() -> list[tuple[str, str]]:
-    """从 SQLite 数据库表 patrol_routes 读取重点巡检航线配置 (不设上限，默认0条)"""
+    """从 SQLite 数据库聚合所有用户配置的重点巡检航线 (全员去重，统一巡检并入公共库)"""
     try:
-        routes = db.get_patrol_routes()
+        routes = db.get_all_unique_patrol_routes()
         return routes or []
     except Exception:
         return []

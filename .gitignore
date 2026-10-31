@@ -1,4 +1,4 @@
-# 敏感凭据与抓包文件 (绝对禁止上传)
+# 敏感凭据与私有环境配置 (绝对禁止上传)
 cl.saz
 changlong.saz
 *.saz
@@ -9,11 +9,13 @@ backend/data/changlong.saz
 *.har
 *.key
 *.pem
+.env
 *.env
 *.env.local
+docker-compose.override.yml
+docker-compose.*.local.yml
 backend/data/credentials.json
 *.exe
-
 
 # SQLite 本地数据库文件 (用户本地自建自用，禁止上传)
 *.db
@@ -42,6 +44,7 @@ tmp/
 
 # IDE 与操作系统临时文件
 .vscode/
+
 # Node.js 依赖与构建产物
 node_modules/
 **/node_modules/
@@ -55,4 +58,3 @@ dist-ssr/
 # PyInstaller 构建产物与打包规格
 build/
 *.spec
-

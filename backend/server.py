@@ -50,8 +50,60 @@ def clear_auth_expired():
     global AUTH_EXPIRED
     AUTH_EXPIRED = False
 
-def get_auth_status() -> dict:
-    prof = db.get_user_profile() or {}
+def extract_request_token(handler) -> str:
+    """从请求头 Authorization、Cookie 或 URL query 中安全提取平台 Session Token"""
+    auth_header = handler.headers.get("Authorization") or handler.headers.get("authorization") or ""
+    if auth_header:
+        if auth_header.startswith("Bearer "):
+            return auth_header[7:].strip()
+        return auth_header.strip()
+
+    cookie_str = handler.headers.get("Cookie") or handler.headers.get("cookie") or ""
+    if cookie_str:
+        for item in cookie_str.split(";"):
+            item = item.strip()
+            if item.startswith("clairline_token="):
+                return item.split("=", 1)[1].strip()
+
+    try:
+        parsed = urllib.parse.urlparse(handler.path)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "token" in qs and qs["token"]:
+            return qs["token"][0].strip()
+    except Exception:
+        pass
+
+    return ""
+
+def get_current_user_from_request(handler) -> tuple[dict | None, str]:
+    """根据请求上下文获取当前登录用户 profile 以及对应 token"""
+    token = extract_request_token(handler)
+    if token:
+        user = db.get_user_by_session_token(token)
+        if user:
+            return user, token
+    return None, token
+
+def get_auth_status(user: dict | None = None) -> dict:
+    """获取当前请求用户的会员认证与畅飞卡登录态 (多用户隔离)"""
+    if not user:
+        return {
+            "ok": True,
+            "is_logged_in": False,
+            "is_expired": False,
+            "user_name": "未登录",
+            "mobile": "",
+            "raw_mobile": "",
+            "cert_number": "",
+            "member_level": "普通会员",
+            "card_name": "",
+            "is_verified": 0,
+            "update_time": "",
+            "auth_preview": "未登录"
+        }
+
+    prof = user
+    user_id = prof.get("user_id") or "default"
     token = prof.get("token") or ""
     update_time = prof.get("updated_at") or ""
     auth_preview = f"{token[:8]}...{token[-4:]}" if len(token) > 12 else (token or "无凭证")
@@ -64,7 +116,6 @@ def get_auth_status() -> dict:
     
     has_profile = bool(mobile or prof.get("user_name"))
     
-    # 判定是否过期：仅在捕获到 100001/403 或距上次校验超过 2 小时打开页面时按需校验一次，零后台轮询
     is_expired = False
     if AUTH_EXPIRED and has_profile:
         is_expired = True
@@ -74,10 +125,10 @@ def get_auth_status() -> dict:
             diff_minutes = (datetime.now() - dt).total_seconds() / 60.0
             if diff_minutes >= 120.0:
                 from loongair_client import keepalive_session
-                ka_res = keepalive_session()
+                ka_res = keepalive_session(user_id=user_id)
                 if ka_res.get("ok"):
                     clear_auth_expired()
-                    prof = db.get_user_profile() or prof
+                    prof = db.get_user_profile(user_id) or prof
                     update_time = prof.get("updated_at") or update_time
                 elif ka_res.get("expired"):
                     mark_auth_expired()
@@ -91,6 +142,7 @@ def get_auth_status() -> dict:
         "ok": True,
         "is_logged_in": is_logged_in,
         "is_expired": is_expired,
+        "user_id": user_id,
         "user_name": prof.get("user_name", "长龙会员"),
         "mobile": masked_mobile,
         "raw_mobile": mobile,
@@ -102,8 +154,12 @@ def get_auth_status() -> dict:
         "auth_preview": auth_preview
     }
 
-def reset_user_auth() -> dict:
+def reset_user_auth(user: dict | None = None, token: str = "") -> dict:
+    """重置并注销当前用户的平台与长龙会话凭证 (不影响其他用户)"""
     clear_auth_expired()
+    if token:
+        db.delete_user_session(token)
+    target_user_id = (user.get("user_id") if user else "") or "default"
     db.save_user_profile({
         "user_name": "长龙会员",
         "mobile": "",
@@ -121,8 +177,8 @@ def reset_user_auth() -> dict:
         "headers_json": "{}",
         "template_json": "{}",
         "updated_at": ""
-    })
-    return {"ok": True, "message": "已成功清空本地会员凭证，已恢复初始状态"}
+    }, user_id=target_user_id)
+    return {"ok": True, "message": "已成功退出并清空当前会员凭证"}
 
 
 # 初始化本地 SQLite 数据库
@@ -246,11 +302,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
-    def send_json(self, data: dict, status: int = 200):
+    def send_json(self, data: dict, status: int = 200, extra_headers: dict = None):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if extra_headers and isinstance(extra_headers, dict):
+            for hk, hv in extra_headers.items():
+                self.send_header(hk, hv)
         self.end_headers()
         self.wfile.write(body)
 
@@ -436,8 +495,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/hot-routes":
-            # 从 SQLite 数据库读取重点巡检航线详细配置 (含名称，不设上限)
-            routes = db.get_patrol_routes_detailed()
+            user, _ = get_current_user_from_request(self)
+            user_id = user.get("user_id") if user else "default"
+            routes = db.get_patrol_routes_detailed(user_id=user_id)
             cfg = db.get_patrol_config()
             interval = int(cfg.get("hot_interval_minutes", "25"))
             self.send_json({"ok": True, "routes": routes, "count": len(routes), "interval": interval})
@@ -476,7 +536,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/auth/status":
-            self.send_json(get_auth_status())
+            user, _ = get_current_user_from_request(self)
+            self.send_json(get_auth_status(user))
             return
 
         elif path == "/api/system/check-update":
@@ -597,6 +658,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/hot-routes":
+            user, _ = get_current_user_from_request(self)
+            user_id = user.get("user_id") if user else "default"
             routes = body.get("routes", [])
             interval = body.get("interval")
             if interval:
@@ -604,9 +667,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     db.update_patrol_config({"hot_interval_minutes": str(int(interval))})
                 except Exception:
                     pass
-            # 持久化写入 SQLite 数据库 (不设上限，支持每条航线名称)
-            count = db.set_patrol_routes(routes)
-            detailed = db.get_patrol_routes_detailed()
+            count = db.set_patrol_routes(routes, user_id=user_id)
+            detailed = db.get_patrol_routes_detailed(user_id=user_id)
             self.send_json({"ok": True, "routes": detailed, "count": count})
             return
 
@@ -706,9 +768,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/auth/reset":
-            res = reset_user_auth()
+            user, token = get_current_user_from_request(self)
+            res = reset_user_auth(user, token)
             client.check_and_reload()
-            self.send_json(res, 200 if res.get("ok") else 500)
+            self.send_json(
+                res, 
+                200 if res.get("ok") else 500,
+                extra_headers={"Set-Cookie": "clairline_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"}
+            )
             return
 
         elif path == "/api/auth/send-code":
@@ -728,7 +795,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if res.get("ok"):
                 clear_auth_expired()
                 client.check_and_reload()
-            self.send_json(res, 200 if res.get("ok") else 400)
+                new_token = res.get("token") or ""
+                extra = {}
+                if new_token:
+                    extra["Set-Cookie"] = f"clairline_token={new_token}; Path=/; Max-Age=2592000; SameSite=Lax"
+                self.send_json(res, 200, extra_headers=extra)
+                return
+            self.send_json(res, 400)
             return
 
         elif path in ("/api/mcp/rpc", "/mcp/rpc", "/rpc"):

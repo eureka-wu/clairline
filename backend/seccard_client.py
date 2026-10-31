@@ -108,7 +108,7 @@ class SecCardClient:
         """
         try:
             import db
-            prof = db.get_user_profile()
+            prof = db.get_any_active_user_profile() or db.get_user_profile('default')
             if prof and (prof.get("token") or prof.get("cookie")):
                 token = prof.get("token") or ""
                 custom_headers = prof.get("headers") or {}
@@ -192,7 +192,7 @@ class SecCardClient:
                 if not prof:
                     try:
                         import db
-                        prof = db.get_user_profile() or {}
+                        prof = db.get_any_active_user_profile() or db.get_user_profile('default') or {}
                     except Exception:
                         prof = {}
 

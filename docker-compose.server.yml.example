@@ -1,0 +1,25 @@
+# =============================================================================
+# 生产服务器私有环境部署配置模板 (示例)
+# 复制为本地 override 配置: cp docker-compose.server.yml.example docker-compose.override.yml
+# 提示: docker-compose.override.yml 已在 .gitignore 中忽略，真实配置绝不入库！
+# =============================================================================
+
+version: '3.8'
+
+services:
+  clairline:
+    networks:
+      - your-custom-network
+    env_file:
+      # 挂载您的服务器公共密码文件 (假路径示例，按需替换为您服务器实际的机密文件路径)
+      - /path/to/your/secrets/db.env
+    environment:
+      # 数据库连接串示例 (假主机名，按需修改)
+      - DATABASE_URL=mysql+pymysql://db_user:${DB_PASSWORD}@mysql_host:3306/loongair?charset=utf8mb4
+    ports:
+      # 仅绑定宿主机 127.0.0.1 回环端口 (供 Nginx 反向代理)
+      - "127.0.0.1:3000:3000"
+
+networks:
+  your-custom-network:
+    external: true

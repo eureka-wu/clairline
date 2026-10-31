@@ -375,7 +375,13 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         }
 
         import db
-        db.save_user_profile(profile)
+        # 多用户平台隔离：以用户手机号作为唯一 user_id 持久化存储
+        user_id = mobile
+        db.save_user_profile(profile, user_id=user_id)
+        # 兼容单机默认环境
+        db.save_user_profile(profile, user_id="default")
+        # 签发专属 Session Token
+        platform_token = db.create_user_session(user_id)
         _PENDING_SESSIONS.pop(mobile, None)
 
         try:
@@ -387,10 +393,14 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         masked_mobile = profile["mobile"][:3] + "****" + profile["mobile"][-4:] if len(profile["mobile"]) == 11 else profile["mobile"]
         return {
             "ok": True,
+            "token": platform_token,
+            "platform_token": platform_token,
             "message": f"欢迎回来，{profile['user_name']}！已通过官方 App 协议绑定会员凭证与畅飞卡。",
             "user": {
+                "user_id": user_id,
                 "user_name": profile["user_name"],
                 "mobile": masked_mobile,
+                "raw_mobile": mobile,
                 "member_level": profile["member_level"],
                 "card_name": profile["card_name"],
                 "is_verified": profile["is_verified"],
@@ -402,15 +412,18 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         return {"ok": False, "error": f"{msg} (代码: {err_code})"}
 
 
-def keepalive_session() -> dict:
+def keepalive_session(user_id: str = "") -> dict:
     """
     向长龙网关发送轻量级心跳请求 (sales_user_userDetailInfo)，
-    用于：
-    1. 刷新长龙服务端 Redis Session 的闲置超时时间 (Idle Timeout)，防止因无操作被服务端踢下线；
-    2. 实时探知当前 Session 在长龙服务端是否真正有效。
+    多用户支持：若传入 user_id 则校验该用户，否则默认校验任意活跃或 default 凭证。
     """
     import db
-    prof = db.get_user_profile() or {}
+    if user_id:
+        prof = db.get_user_profile(user_id) or {}
+    else:
+        prof = db.get_any_active_user_profile() or db.get_user_profile("default") or {}
+
+    effective_user_id = prof.get("user_id") or user_id or "default"
     token = prof.get("token") or ""
     if not token:
         return {"ok": False, "expired": False, "reason": "no_token"}
@@ -421,25 +434,23 @@ def keepalive_session() -> dict:
 
     res = _call_api("sales_user_userDetailInfo", params, headers, timeout=6.0)
     if res is None:
-        # 网络波动或超时，不误判为过期
         return {"ok": False, "expired": False, "reason": "network_timeout"}
 
     err_code = res.get("ErrorCode")
     if err_code == 0:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         prof["updated_at"] = now_str
-        # 若服务端下发了新的 SESSION Cookie 则同步更新
         new_sess = res.get("_set_cookie_session")
         if new_sess and new_sess != token:
             prof["token"] = new_sess
             prof["cookie"] = f"SESSION={new_sess}"
             if isinstance(prof.get("headers"), dict):
                 prof["headers"]["Cookie"] = f"SESSION={new_sess}"
-        db.save_user_profile(prof)
+        db.save_user_profile(prof, user_id=effective_user_id)
         return {"ok": True, "expired": False}
 
     if err_code == 100001:
-        ref = refresh_access_token()
+        ref = refresh_access_token(user_id=effective_user_id)
         if ref.get("ok"):
             return {"ok": True, "expired": False, "refreshed": True}
         return {"ok": False, "expired": True, "error": "Session 已过期 (100001)"}
@@ -447,12 +458,16 @@ def keepalive_session() -> dict:
     return {"ok": False, "expired": False, "error": f"ErrorCode: {err_code}"}
 
 
-def refresh_access_token(refresh_token: str = "") -> dict:
+def refresh_access_token(refresh_token: str = "", user_id: str = "") -> dict:
     """
-    尝试使用持久化存储的 refreshToken 向长龙服务器换取新凭证
+    尝试使用持久化存储的 refreshToken 向长龙服务器换取新凭证 (支持多用户)
     """
     import db
-    prof = db.get_user_profile() or {}
+    if user_id:
+        prof = db.get_user_profile(user_id) or {}
+    else:
+        prof = db.get_any_active_user_profile() or db.get_user_profile("default") or {}
+    effective_user_id = prof.get("user_id") or user_id or "default"
     rt = refresh_token or prof.get("refresh_token") or ""
     if not rt:
         return {"ok": False, "error": "本地数据库缺少 refreshToken，无法自动续期"}
@@ -497,7 +512,7 @@ def refresh_access_token(refresh_token: str = "") -> dict:
                     if channel_id != 8:
                         prof["headers"]["Authorization"] = new_token
                     prof["headers"]["Cookie"] = f"SESSION={new_token}"
-                db.save_user_profile(prof)
+                db.save_user_profile(prof, user_id=effective_user_id)
                 print(f"[+] 成功通过 refreshToken 自动续期凭证: {new_token[:10]}...")
                 try:
                     from seccard_client import SecCardClient

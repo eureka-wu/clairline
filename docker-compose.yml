@@ -4,17 +4,21 @@ services:
   clairline:
     image: ghcr.io/eureka-wu/clairline:latest
     container_name: clairline
-    restart: unless-stopped
+    restart: always
     ports:
-      # 映射 Web 控制台与 MCP SSE 智能助手端点
-      - "3000:3000"
+      # 映射 Web 控制台与 API 端点 (生产环境若使用反向代理可修改为 127.0.0.1:3000:3000)
+      - "${CLAIRLINE_PORT_MAPPING:-3000:3000}"
     volumes:
-      # 持久化挂载 SQLite 数据库与用户配置（即使更新容器数据依然留存）
+      # 本地持久化目录 (持久化存储 SQLite 数据库与用户配置)
       - ./data:/app/backend/data
     environment:
-      - TZ=Asia/Shanghai
-      - CLAIRLINE_HOST=0.0.0.0
-      - CLAIRLINE_PORT=3000
-    # MCP 接入支持：
-    # 方式一 (推荐，远程/跨机): http://<宿主机IP>:3000/sse
-    # 方式二 (容器内标准管道): docker exec -i clairline python -m backend.mcp_server
+      - TZ=${TZ:-Asia/Shanghai}
+      - CLAIRLINE_HOST=${CLAIRLINE_HOST:-0.0.0.0}
+      - CLAIRLINE_PORT=${CLAIRLINE_PORT:-3000}
+      - DATABASE_URL=${DATABASE_URL:-}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; exit(0 if urllib.request.urlopen(\"http://127.0.0.1:3000/api/status\").getcode() == 200 else 1)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -102,29 +102,200 @@ def normalize_iata(name_or_code: str) -> str:
         return CITY_IATA_MAP[clean]
     return clean.upper()
 
-def get_connection() -> sqlite3.Connection:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=20.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL")  # 开启 WAL 极速并发读写模式
-    conn.execute("PRAGMA synchronous = NORMAL")
-    return conn
+
+# -----------------------------------------------------------------------------
+# 双模数据库引擎 (SQLite 3 与 MySQL 原生双模自适应适配器)
+# -----------------------------------------------------------------------------
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+
+def is_mysql_mode() -> bool:
+    """检测当前运行环境是否配置了远程 MySQL 数据库"""
+    return bool(DATABASE_URL and (DATABASE_URL.startswith("mysql://") or DATABASE_URL.startswith("mysql+pymysql://")))
+
+def parse_mysql_url(url: str) -> dict:
+    """解析 DATABASE_URL 格式 (如 mysql+pymysql://root:pass@mysql:3306/loongair?charset=utf8mb4)"""
+    import urllib.parse
+    if url.startswith("mysql+pymysql://"):
+        raw_url = "mysql://" + url[len("mysql+pymysql://"):]
+    else:
+        raw_url = url
+    p = urllib.parse.urlparse(raw_url)
+    db_name = p.path.lstrip("/")
+    if "?" in db_name:
+        db_name, qs_part = db_name.split("?", 1)
+    else:
+        qs_part = p.query
+    qs = urllib.parse.parse_qs(qs_part)
+    charset = qs.get("charset", ["utf8mb4"])[0]
+    return {
+        "host": p.hostname or "127.0.0.1",
+        "port": p.port or 3306,
+        "user": p.username or "root",
+        "password": p.password or "",
+        "database": db_name or "loongair",
+        "charset": charset
+    }
+
+def adapt_sql_for_mysql(sql: str) -> str:
+    """将标准/SQLite SQL 自适应转译为标准 MySQL 8.0/5.7 语法"""
+    # 1. 替换自增主键语法
+    sql = re.sub(r'INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT', 'INT AUTO_INCREMENT PRIMARY KEY', sql, flags=re.IGNORECASE)
+    # 2. 替换 INSERT OR IGNORE -> INSERT IGNORE
+    sql = re.sub(r'INSERT\s+OR\s+IGNORE\s+INTO', 'INSERT IGNORE INTO', sql, flags=re.IGNORECASE)
+    # 3. 替换 INSERT OR REPLACE INTO -> REPLACE INTO
+    sql = re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO', 'REPLACE INTO', sql, flags=re.IGNORECASE)
+    # 4. 替换 ON CONFLICT(...) DO UPDATE SET -> ON DUPLICATE KEY UPDATE
+    sql = re.sub(r'ON\s+CONFLICT\s*\([^\)]*\)\s*DO\s+UPDATE\s+SET', 'ON DUPLICATE KEY UPDATE', sql, flags=re.IGNORECASE)
+    # 5. 替换 excluded.col_name -> VALUES(col_name)
+    sql = re.sub(r'excluded\.([a-zA-Z0-9_]+)', r'VALUES()', sql, flags=re.IGNORECASE)
+    # 6. 替换 PRAGMA table_info(xxx) -> SHOW COLUMNS FROM xxx
+    pragma_match = re.search(r'PRAGMA\s+table_info\s*\(\s*([a-zA-Z0-9_]+)\s*\)', sql, flags=re.IGNORECASE)
+    if pragma_match:
+        table_name = pragma_match.group(1)
+        return f"SHOW COLUMNS FROM `{table_name}`"
+    # 7. 替换占位符 ? 为 %s
+    sql = sql.replace('?', '%s')
+    return sql
+
+class DictRow(dict):
+    """兼容 SQLite Row 与 PyMySQL DictCursor 的行数据封装 (同时支持下标索引、键名索引与 dict 转换)"""
+    def __init__(self, d):
+        super().__init__(d)
+        self._keys = list(d.keys())
+        self._vals = list(d.values())
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return self._vals[item]
+        # SHOW COLUMNS 兼容 PRAGMA table_info 的 (cid, name, ...)
+        if "Field" in self and item == 1:
+            return self["Field"]
+        return super().__getitem__(item)
+
+class MySQLCursorWrapper:
+    def __init__(self, raw_cursor):
+        self._cur = raw_cursor
+
+    def execute(self, sql: str, params=None):
+        adapted = adapt_sql_for_mysql(sql)
+        if params is not None:
+            return self._cur.execute(adapted, params)
+        return self._cur.execute(adapted)
+
+    def executemany(self, sql: str, params_seq):
+        adapted = adapt_sql_for_mysql(sql)
+        return self._cur.executemany(adapted, params_seq)
+
+    def fetchone(self):
+        row = self._cur.fetchone()
+        if row is None:
+            return None
+        return DictRow(row)
+
+    def fetchall(self):
+        rows = self._cur.fetchall()
+        if not rows:
+            return []
+        return [DictRow(r) for r in rows]
+
+    def close(self):
+        try:
+            self._cur.close()
+        except Exception:
+            pass
+
+class MySQLConnectionWrapper:
+    def __init__(self, raw_conn):
+        self._conn = raw_conn
+
+    def cursor(self):
+        import pymysql.cursors
+        return MySQLCursorWrapper(self._conn.cursor(pymysql.cursors.DictCursor))
+
+    def execute(self, sql: str, params=None):
+        cur = self.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self.rollback()
+        else:
+            self.commit()
+
+
+def get_connection():
+    """获取数据库连接：优先检测 DATABASE_URL (MySQL)，否则使用本地 SQLite 数据库"""
+    if is_mysql_mode():
+        import pymysql
+        cfg = parse_mysql_url(DATABASE_URL)
+        conn = pymysql.connect(
+            host=cfg["host"],
+            port=cfg["port"],
+            user=cfg["user"],
+            password=cfg["password"],
+            database=cfg["database"],
+            charset=cfg["charset"],
+            autocommit=False
+        )
+        return MySQLConnectionWrapper(conn)
+    else:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=20.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode = WAL")  # 开启 WAL 极速并发读写模式
+        conn.execute("PRAGMA synchronous = NORMAL")
+        return conn
 
 def init_db():
-    """初始化数据库表与索引，并平滑迁移历史配置与数据"""
+    """初始化数据库表与索引，并平滑迁移历史配置与数据 (支持 SQLite / MySQL 双模自动建表)"""
+    if is_mysql_mode():
+        try:
+            import pymysql
+            cfg = parse_mysql_url(DATABASE_URL)
+            root_conn = pymysql.connect(
+                host=cfg["host"],
+                port=cfg["port"],
+                user=cfg["user"],
+                password=cfg["password"],
+                charset=cfg["charset"],
+                autocommit=True
+            )
+            with root_conn.cursor() as c:
+                c.execute(f"CREATE DATABASE IF NOT EXISTS `{cfg['database']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci")
+            root_conn.close()
+            print(f"[MySQL] 数据库 `{cfg['database']}` 连通与就绪确认成功！")
+        except Exception as e:
+            print(f"[MySQL] 预检数据库提示: {e}")
+
     conn = get_connection()
     with conn:
         # 1. 巡检规则配置表 (patrol_config)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS patrol_config (
-                config_key TEXT PRIMARY KEY,
+                config_key VARCHAR(128) PRIMARY KEY,
                 config_value TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
                 updated_at TEXT NOT NULL
             )
         """)
 
-        # 2. 动态重点监控航线配置表 (patrol_routes，不设上限，支持自定义航线配置名称)
+        # 2. 动态重点监控航线配置表 (patrol_routes，不设上限，支持自定义航线配置名称，多用户按 user_id 隔离)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS patrol_routes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,8 +303,8 @@ def init_db():
                 to_city TEXT NOT NULL,
                 route_name TEXT NOT NULL DEFAULT '',
                 sort_order INTEGER NOT NULL DEFAULT 0,
-                updated_at TEXT NOT NULL,
-                UNIQUE (from_city, to_city)
+                user_id TEXT NOT NULL DEFAULT 'default',
+                updated_at TEXT NOT NULL
             )
         """)
         try:
@@ -142,19 +313,32 @@ def init_db():
             cols = [c[1] for c in cur.fetchall()]
             if "route_name" not in cols:
                 conn.execute("ALTER TABLE patrol_routes ADD COLUMN route_name TEXT NOT NULL DEFAULT ''")
+            if "user_id" not in cols:
+                conn.execute("ALTER TABLE patrol_routes ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default'")
         except Exception:
             pass
+
+        # 2.1 用户 Session 会话凭证表 (多用户平台隔离支持)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                token VARCHAR(128) PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_active TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id)")
 
         # 3. 航班直飞班次表 (flight_routes)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS flight_routes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                from_city TEXT NOT NULL,
-                to_city TEXT NOT NULL,
-                from_iata TEXT NOT NULL DEFAULT '',
-                to_iata TEXT NOT NULL DEFAULT '',
-                flight_no TEXT NOT NULL DEFAULT '',
-                dep_time TEXT NOT NULL DEFAULT '',
+                from_city VARCHAR(32) NOT NULL,
+                to_city VARCHAR(32) NOT NULL,
+                from_iata VARCHAR(16) NOT NULL DEFAULT '',
+                to_iata VARCHAR(16) NOT NULL DEFAULT '',
+                flight_no VARCHAR(32) NOT NULL DEFAULT '',
+                dep_time VARCHAR(16) NOT NULL DEFAULT '',
                 arr_time TEXT NOT NULL DEFAULT '',
                 duration TEXT NOT NULL DEFAULT '',
                 aircraft TEXT NOT NULL DEFAULT '',
@@ -169,9 +353,9 @@ def init_db():
         # 4. 航线放票日历表 (flight_calendar) - is_available 1 表示有票，0 表示无票/禁兑
         conn.execute("""
             CREATE TABLE IF NOT EXISTS flight_calendar (
-                from_city TEXT NOT NULL,
-                to_city TEXT NOT NULL,
-                flight_date TEXT NOT NULL,
+                from_city VARCHAR(32) NOT NULL,
+                to_city VARCHAR(32) NOT NULL,
+                flight_date VARCHAR(32) NOT NULL,
                 is_available INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (from_city, to_city, flight_date)
@@ -182,13 +366,13 @@ def init_db():
         # 5. 实时查验流水表 (seat_queries) - 记录用户与系统查票的每个航班机位与时刻 (持久化核心)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS seat_queries (
-                from_city TEXT NOT NULL,
-                to_city TEXT NOT NULL,
-                flight_date TEXT NOT NULL,
-                flight_no TEXT NOT NULL DEFAULT '',
+                from_city VARCHAR(32) NOT NULL,
+                to_city VARCHAR(32) NOT NULL,
+                flight_date VARCHAR(32) NOT NULL,
+                flight_no VARCHAR(32) NOT NULL DEFAULT '',
                 sec_card_left INTEGER NOT NULL DEFAULT 0,
                 normal_left INTEGER NOT NULL DEFAULT 0,
-                dep_time TEXT NOT NULL DEFAULT '',
+                dep_time VARCHAR(16) NOT NULL DEFAULT '',
                 arr_time TEXT NOT NULL DEFAULT '',
                 aircraft TEXT NOT NULL DEFAULT 'A320',
                 stopover TEXT NOT NULL DEFAULT '直飞',
@@ -228,7 +412,7 @@ def init_db():
         # 7. 轮询监控任务表 (monitor_tasks)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS monitor_tasks (
-                id TEXT PRIMARY KEY,
+                id VARCHAR(64) PRIMARY KEY,
                 from_city TEXT NOT NULL,
                 to_city TEXT NOT NULL,
                 flight_date TEXT NOT NULL,
@@ -252,7 +436,7 @@ def init_db():
         # 9. 会员个人资料与凭据持久化表 (user_profile)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_profile (
-                user_id TEXT PRIMARY KEY DEFAULT 'default',
+                user_id VARCHAR(64) PRIMARY KEY DEFAULT 'default',
                 user_name TEXT NOT NULL DEFAULT '长龙会员',
                 mobile TEXT NOT NULL DEFAULT '',
                 member_level TEXT NOT NULL DEFAULT '普通会员',
@@ -736,37 +920,56 @@ def get_available_routes_dto() -> dict:
     finally:
         conn.close()
 
-def get_patrol_routes() -> list[tuple[str, str]]:
-    """从数据库读取当前配置的重点巡检航线列表 (不设上限)"""
+def get_patrol_routes(user_id: str = "default") -> list[tuple[str, str]]:
+    """从数据库读取指定用户的重点巡检航线列表 (不设上限)"""
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT from_city, to_city FROM patrol_routes ORDER BY sort_order ASC, id ASC")
+        cur.execute("SELECT from_city, to_city FROM patrol_routes WHERE user_id = ? ORDER BY sort_order ASC, id ASC", (user_id,))
+        rows = cur.fetchall()
+        if not rows and user_id != "default":
+            # 若新用户尚未配置自己的重点航线，查询 default 模板供预览或留空
+            pass
+        return [(r[0], r[1]) for r in rows]
+    finally:
+        conn.close()
+
+def get_all_unique_patrol_routes() -> list[tuple[str, str]]:
+    """从数据库聚合所有用户的重点监控航线（去重，供后台自动巡检机器人统一巡检入共享库）"""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT from_city, to_city FROM patrol_routes")
         return [(r[0], r[1]) for r in cur.fetchall()]
     finally:
         conn.close()
 
-def get_patrol_routes_detailed() -> list[dict]:
-    """从数据库读取当前配置的重点巡检航线详细列表 (包含配置名称与序号，不设上限)"""
+def get_patrol_routes_detailed(user_id: str = "default") -> list[dict]:
+    """从数据库读取指定用户的重点巡检航线详细列表 (包含配置名称与序号，不设上限)"""
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute("PRAGMA table_info(patrol_routes)")
         cols = [c[1] for c in cur.fetchall()]
         has_name = "route_name" in cols
+        has_user = "user_id" in cols
+        
+        where_clause = "WHERE user_id = ?" if has_user else ""
+        params = (user_id,) if has_user else ()
+        
         if has_name:
-            cur.execute("SELECT from_city, to_city, route_name FROM patrol_routes ORDER BY sort_order ASC, id ASC")
+            cur.execute(f"SELECT from_city, to_city, route_name FROM patrol_routes {where_clause} ORDER BY sort_order ASC, id ASC", params)
             rows = cur.fetchall()
             return [{"from": r[0], "to": r[1], "name": r[2] if r[2] else f"{r[0]} ➔ {r[1]}"} for r in rows]
         else:
-            cur.execute("SELECT from_city, to_city FROM patrol_routes ORDER BY sort_order ASC, id ASC")
+            cur.execute(f"SELECT from_city, to_city FROM patrol_routes {where_clause} ORDER BY sort_order ASC, id ASC", params)
             rows = cur.fetchall()
             return [{"from": r[0], "to": r[1], "name": f"{r[0]} ➔ {r[1]}"} for r in rows]
     finally:
         conn.close()
 
-def set_patrol_routes(routes: list) -> int:
-    """更新巡检航线列表 (不设上限，支持存储自定义航线配置名称)"""
+def set_patrol_routes(routes: list, user_id: str = "default") -> int:
+    """更新指定用户的巡检航线列表 (不设上限，支持存储自定义航线配置名称)"""
     cleaned = []
     seen = set()
     for item in routes:
@@ -788,11 +991,11 @@ def set_patrol_routes(routes: list) -> int:
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         with conn:
-            conn.execute("DELETE FROM patrol_routes")
+            conn.execute("DELETE FROM patrol_routes WHERE user_id = ?", (user_id,))
             for idx, (frm, to, name) in enumerate(cleaned):
                 conn.execute(
-                    "INSERT INTO patrol_routes (from_city, to_city, route_name, sort_order, updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (frm, to, name, idx + 1, now_str)
+                    "INSERT INTO patrol_routes (from_city, to_city, route_name, sort_order, user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (frm, to, name, idx + 1, user_id, now_str)
                 )
         return len(cleaned)
     finally:
@@ -1006,3 +1209,73 @@ if __name__ == "__main__":
     print(f"✈️ 大盘聚合生成: {dto['totalAvailableRoutes']} 条有票航线，共计 {dto['totalDatePoints']} 个有效出行日")
     hgh_twc = get_available_dates("杭州", "图木舒克")
     print(f"🔎 杭州➔图木舒克 纯净有效放票日 ({len(hgh_twc)}天): {hgh_twc}")
+
+
+import secrets
+
+def create_user_session(user_id: str) -> str:
+    """为指定用户生成一个安全随机的平台 Session Token，并持久化至 user_sessions 表"""
+    token = "cla_" + secrets.token_urlsafe(32)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO user_sessions (token, user_id, created_at, last_active) VALUES (?, ?, ?, ?)",
+                (token, user_id, now_str, now_str)
+            )
+        return token
+    finally:
+        conn.close()
+
+def get_user_by_session_token(token: str) -> dict | None:
+    """根据 Session Token 获取用户信息，并静默刷新最后活跃时间"""
+    if not token or not isinstance(token, str):
+        return None
+    token = token.strip()
+    if token.startswith("Bearer "):
+        token = token[7:].strip()
+    if not token:
+        return None
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM user_sessions WHERE token = ?", (token,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        user_id = row[0]
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with conn:
+            conn.execute("UPDATE user_sessions SET last_active = ? WHERE token = ?", (now_str, token))
+        return get_user_profile(user_id)
+    finally:
+        conn.close()
+
+def delete_user_session(token: str) -> bool:
+    """删除指定的平台 Session Token (用户退出登录)"""
+    if not token:
+        return False
+    if token.startswith("Bearer "):
+        token = token[7:].strip()
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM user_sessions WHERE token = ?", (token,))
+        return True
+    finally:
+        conn.close()
+
+def get_any_active_user_profile() -> dict | None:
+    """获取数据库中任意一个具有有效长龙 Token 的会员 profile (供后台巡检机器人共享池使用)"""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM user_profile WHERE token != '' AND mobile != '' ORDER BY updated_at DESC LIMIT 1")
+        row = cur.fetchone()
+        if row:
+            return get_user_profile(row[0])
+        return get_user_profile("default")
+    finally:
+        conn.close()

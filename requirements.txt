@@ -3,3 +3,5 @@ bottle>=0.12.25
 pywebview>=5.0.0
 pyinstaller>=6.0.0
 Pillow>=10.0.0
+pymysql>=1.1.0
+cryptography>=42.0.0
