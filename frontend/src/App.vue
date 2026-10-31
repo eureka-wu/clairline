@@ -150,7 +150,7 @@
     <!-- 转入后台时的常驻高质感悬浮进度微卡片 (Mini Floating Radar Widget) -->
     <transition name="mini-pop">
       <div 
-        v-if="patrolState.running && !fullPatrolVisible" 
+        v-if="authStatus.is_logged_in && patrolState.running && !fullPatrolVisible" 
         class="mini-patrol-widget"
         @click="fullPatrolVisible = true"
         title="点击重新展开全屏高质感普查大雷达"
@@ -580,6 +580,11 @@ function handlePatrolTriggered(mode = 'all') {
 }
 
 function handleOpenPatrol() {
+  if (!authStatus.value?.is_logged_in) {
+    showToast('「航线监控与全网普查」需要使用会员账号凭证，请先登录！');
+    openAuthModal(false);
+    return;
+  }
   patrolModalVisible.value = true;
 }
 
@@ -757,8 +762,10 @@ async function initData() {
 
   // 加载巡检数量
   try {
-    const pRes = await fetchPatrolHotRoutes();
-    if (pRes?.routes) patrolCount.value = pRes.routes.length;
+    if (authStatus.value?.is_logged_in) {
+      const pRes = await fetchPatrolHotRoutes();
+      if (pRes?.routes) patrolCount.value = pRes.routes.length;
+    }
   } catch (e) {}
 }
 

@@ -412,7 +412,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     "savedToDb": True
                 })
             except Exception as e:
-                self.send_json({"ok": False, "error": str(e)}, 500)
+                print(f"[!] API Error: {e}"); self.send_json({"ok": False, "error": "服务处理异常，请稍后重试！"}, 500)
             return
 
         elif path == "/api/seat-cache":
@@ -496,24 +496,30 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 dests = client.get_official_destinations(frm)
                 self.send_json({"ok": True, "from": frm, "destinations": dests, "count": len(dests)})
             except Exception as e:
-                self.send_json({"ok": False, "error": str(e)}, 500)
+                print(f"[!] API Error: {e}"); self.send_json({"ok": False, "error": "服务处理异常，请稍后重试！"}, 500)
             return
 
-        elif path == "/api/monitor/tasks":
-            self.send_json({
-                "ok": True,
-                "tasks": scheduler.tasks,
-                "lastSyncTime": scheduler.last_sync_time,
-                "lastSyncStatus": scheduler.last_sync_status
-            })
-            return
-
-        elif path == "/api/monitor/history":
-            self.send_json({"ok": True, "history": scheduler.history})
+        elif path in ("/api/monitor/tasks", "/api/monitor/history"):
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后查看监控任务！", "needLogin": True}, 401)
+                return
+            if path == "/api/monitor/tasks":
+                self.send_json({
+                    "ok": True,
+                    "tasks": scheduler.tasks,
+                    "lastSyncTime": scheduler.last_sync_time,
+                    "lastSyncStatus": scheduler.last_sync_status
+                })
+            else:
+                self.send_json({"ok": True, "history": scheduler.history})
             return
 
         elif path == "/api/patrol/hot-routes":
             user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后查看重点航线！", "needLogin": True}, 401)
+                return
             user_id = user.get("user_id") if user else "default"
             routes = db.get_patrol_routes_detailed(user_id=user_id)
             cfg = db.get_patrol_config()
@@ -532,25 +538,23 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(dto)
             return
 
-        elif path == "/api/patrol/config":
-            configs = db.get_patrol_config()
-            self.send_json({"ok": True, "config": configs})
-            return
-
-        elif path == "/api/patrol/times":
-            times = db.get_full_patrol_times()
-            self.send_json({"ok": True, "times": times})
-            return
-
-        elif path == "/api/patrol/switches":
-            switches = db.get_patrol_switches()
-            self.send_json({"ok": True, "switches": switches})
-            return
-
-        elif path == "/api/patrol/logs":
-            # 查询数据库中的巡检流水
-            logs = db.get_recent_patrol_logs(50)
-            self.send_json({"ok": True, "logs": logs, "count": len(logs)})
+        elif path in ("/api/patrol/config", "/api/patrol/times", "/api/patrol/switches", "/api/patrol/logs"):
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后查看巡检配置与流水！", "needLogin": True}, 401)
+                return
+            if path == "/api/patrol/config":
+                configs = db.get_patrol_config()
+                self.send_json({"ok": True, "config": configs})
+            elif path == "/api/patrol/times":
+                times = db.get_full_patrol_times()
+                self.send_json({"ok": True, "times": times})
+            elif path == "/api/patrol/switches":
+                switches = db.get_patrol_switches()
+                self.send_json({"ok": True, "switches": switches})
+            elif path == "/api/patrol/logs":
+                logs = db.get_recent_patrol_logs(50)
+                self.send_json({"ok": True, "logs": logs, "count": len(logs)})
             return
 
         elif path == "/api/auth/status":
@@ -634,6 +638,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             body = {}
 
         if path == "/api/monitor/tasks":
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后管理监控任务！", "needLogin": True}, 401)
+                return
             frm = body.get("from")
             to = body.get("to")
             date_str = body.get("date")
@@ -645,6 +653,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/monitor/sync":
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后触发同步！", "needLogin": True}, 401)
+                return
             # 立即触发一轮同步
             scheduler.sync_once()
             self.send_json({
@@ -657,6 +669,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/patrol/hot-routes":
             user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后配置监控航线！", "needLogin": True}, 401)
+                return
             user_id = user.get("user_id") if user else "default"
             routes = body.get("routes", [])
             interval = body.get("interval")
@@ -671,6 +686,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/config":
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后修改巡检规则！", "needLogin": True}, 401)
+                return
             cfg = body.get("config", {})
             if isinstance(cfg, dict) and cfg:
                 db.update_patrol_config(cfg)
@@ -680,6 +699,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/times":
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后配置定时普查时间！", "needLogin": True}, 401)
+                return
             times = body.get("times", [])
             if isinstance(times, list):
                 saved = db.set_full_patrol_times(times)
@@ -689,6 +712,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/switches":
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后修改定时开关！", "needLogin": True}, 401)
+                return
             hot_enabled = body.get("hot_enabled")
             all_enabled = body.get("all_enabled")
             switches = db.set_patrol_switches(hot_enabled=hot_enabled, all_enabled=all_enabled)
@@ -696,6 +723,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/patrol/trigger":
+            user, token = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({
+                    "ok": False,
+                    "error": "未登录会员账号！全网普查与巡检需要登录长龙会员账号后方可操作，请先登录。",
+                    "needLogin": True
+                }, 401)
+                return
+
             qs = urllib.parse.parse_qs(parsed.query)
             query_mode = qs.get("mode", [""])[0]
             mode = body.get("mode") or query_mode or "hot"
@@ -711,19 +747,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 }, 200)
                 return
             
-            # 100% 优先且唯一从 SQLite 数据库重载会员凭据与畅飞卡模板
-            client.check_and_reload()
-            if not client.headers:
+            # 使用当前登录用户的专属凭证创建客户端，绝不滥用全局默认 Token
+            user_client = seccard_client.create_user_client(user)
+            if not user_client or not user_client.headers:
                 self.send_json({
                     "ok": False,
-                    "error": "未检测到有效会员登录凭据，请先在右上角使用【手机验证码登录】！"
+                    "error": "当前账号未检测到有效会员 Token，请点击右上角重新获取验证码登录！",
+                    "needLogin": True
                 }, 401)
                 return
 
             # 启动前健康探针：同步检测登录态是否依然存活
             try:
-                client.check_and_reload()
-                client.get_calendar("杭州", "深圳")
+                user_client.get_calendar("杭州", "深圳")
             except Exception as auth_err:
                 err_text = str(auth_err)
                 if "100001" in err_text or "403" in err_text or "未登录" in err_text or "未登入" in err_text:
@@ -731,10 +767,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_json({
                         "ok": False,
                         "error": "长龙会员登录凭据已失效，请在右上角使用【手机验证码登录】重新续期！",
-                        "authExpired": True
+                        "authExpired": True,
+                        "needLogin": True
                     }, 401)
                     return
-                elif "scgtid" in err_text.lower() or not client.template.get("secCardGrantTid"):
+                elif "scgtid" in err_text.lower() or not user_client.template.get("secCardGrantTid"):
                     self.send_json({
                         "ok": False,
                         "error": "已获取会员身份，但尚未获取到有效的长龙畅飞卡资产授权！"
@@ -753,7 +790,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
             def patrol_worker():
                 try:
-                    auto_patrol.run_patrol_cycle(client, mode=mode)
+                    auto_patrol.run_patrol_cycle(user_client, mode=mode)
                 except Exception as ex:
                     print(f"⚠️ 手动巡检异常: {ex}")
                     auto_patrol.PATROL_STATE["running"] = False
@@ -779,6 +816,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/auth/send-code":
             mobile = str(body.get("mobile") or "").strip()
             check_param = str(body.get("checkParam") or "").strip()
+            import re
+            if not re.match(r"^1[3-9]\d{9}$", mobile):
+                self.send_json({"ok": False, "error": "请输入合法的 11 位中国大陆手机号码！"}, 400)
+                return
             from loongair_client import send_sms_verify_code
             res = send_sms_verify_code(mobile, check_param)
             self.send_json(res, 200 if res.get("ok") else 400)
@@ -788,6 +829,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             mobile = str(body.get("mobile") or "").strip()
             code = str(body.get("code") or "").strip()
             verify_id = str(body.get("verifyId") or "").strip()
+            import re
+            if not re.match(r"^1[3-9]\d{9}$", mobile):
+                self.send_json({"ok": False, "error": "请输入合法的 11 位手机号码！"}, 400)
+                return
+            if not re.match(r"^\d{4,6}$", code):
+                self.send_json({"ok": False, "error": "验证码格式不正确，请输入 4~6 位纯数字！"}, 400)
+                return
             try:
                 from loongair_client import login_by_mobile_code
                 res = login_by_mobile_code(mobile, code, verify_id)
@@ -804,7 +852,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                self.send_json({"ok": False, "error": f"登录服务异常: {str(e)}"}, 500)
+                print(f"[!] Login Error: {e}"); self.send_json({"ok": False, "error": "登录服务异常，请稍后重试！"}, 500)
             return
 
         self.send_json({"ok": False, "error": f"404 Not Found: {path}"}, 404)
@@ -815,6 +863,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         qs = urllib.parse.parse_qs(parsed.query)
 
         if path == "/api/monitor/tasks":
+            user, _ = get_current_user_from_request(self)
+            if not user or not user.get("token"):
+                self.send_json({"ok": False, "error": "请先登录会员账号后操作！", "needLogin": True}, 401)
+                return
             task_id = qs.get("id", [""])[0]
             if not task_id:
                 self.send_json({"ok": False, "error": "缺少 id 参数"}, 400)

@@ -73,7 +73,7 @@
 
         <!-- 2. 航线监控按钮 -->
         <button 
-          type="button" 
+          v-if="authStatus?.is_logged_in" type="button" 
           class="header-pill-btn patrol-pill"
           :class="{ 'is-patrolling': patrolState?.running }"
           @click="$emit('open-patrol')"
