@@ -34,6 +34,8 @@ RUN pip install --no-cache-dir requests>=2.31.0 bottle>=0.12.25 Pillow>=10.0.0 p
 
 # 复制后端核心逻辑
 COPY backend/ /app/backend/
+# 额外备份种子文件至 /app/backend/routes_seed.json，防止挂载 ./data 卷遮蔽 /app/backend/data 导致种子丢失
+COPY backend/data/routes_seed.json /app/backend/routes_seed.json
 
 # 将阶段 1 编译的前端静态产物复制至容器目录
 COPY --from=frontend-builder /build/frontend/dist /app/frontend/dist

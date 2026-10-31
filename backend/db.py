@@ -536,6 +536,79 @@ def init_db():
         print(f"⚠️ 自动清理历史过期日期提示: {e}")
     conn.close()
 
+def get_routes_seed_file() -> Path | None:
+    """智能查找 routes_seed.json 航线种子文件 (自动规避 Docker volume 遮蔽)"""
+    candidate_paths = [
+        BACKEND_DIR / "data" / "routes_seed.json",
+        BACKEND_DIR / "routes_seed.json",
+        Path(__file__).resolve().parent / "data" / "routes_seed.json",
+        Path(__file__).resolve().parent / "routes_seed.json",
+        DATA_DIR / "routes_seed.json",
+        Path("/app/backend/routes_seed.json"),
+        Path("/app/backend/data/routes_seed.json"),
+        PROJECT_DIR / "backend" / "data" / "routes_seed.json",
+    ]
+    for p in candidate_paths:
+        if p and p.exists() and p.is_file():
+            return p
+    return None
+
+def seed_flight_routes_if_empty(conn=None) -> int:
+    """自动将 397 条航线/490个航班基础排班种子导入数据库 flight_routes 表"""
+    close_when_done = False
+    if conn is None:
+        conn = get_connection()
+        close_when_done = True
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM flight_routes")
+        count = cur.fetchone()[0]
+        if count > 0:
+            return count
+
+        routes_file = get_routes_seed_file()
+        if not routes_file:
+            print("⚠️ 未在任何候选路径中找到 routes_seed.json 航线种子文件")
+            return 0
+
+        # 如果 DATA_DIR 内丢失种子，自动同步一份过去
+        try:
+            target_seed = DATA_DIR / "routes_seed.json"
+            if not target_seed.exists():
+                import shutil
+                shutil.copy2(routes_file, target_seed)
+        except Exception:
+            pass
+
+        raw_routes = json.loads(routes_file.read_text(encoding="utf-8"))
+        batch = []
+        for r in raw_routes:
+            frm = r.get("from_city") or r.get("from") or ""
+            to = r.get("to_city") or r.get("to") or ""
+            f_no = r.get("flight_no") or r.get("flightNo") or ""
+            if not frm or not to or not f_no: continue
+            batch.append((
+                frm, to, CITY_IATA_MAP.get(frm, ""), CITY_IATA_MAP.get(to, ""),
+                f_no, r.get("dep_time") or r.get("depTime", ""), r.get("arr_time") or r.get("arrTime", ""),
+                r.get("duration", ""), r.get("aircraft", ""), r.get("frequency", ""),
+                r.get("stopover", ""), r.get("season", "")
+            ))
+        if batch:
+            with conn:
+                conn.executemany("""
+                    INSERT OR IGNORE INTO flight_routes 
+                    (from_city, to_city, from_iata, to_iata, flight_no, dep_time, arr_time, duration, aircraft, frequency, stopover, season)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, batch)
+            print(f"[+] 航网排班种子初始化成功：已为数据库自动导入 {len(batch)} 个航线航班 (覆盖 397 条长龙全网直飞航线)！")
+        return len(batch)
+    except Exception as e:
+        print(f"⚠️ 航线班次种子导入提示: {e}")
+        return 0
+    finally:
+        if close_when_done:
+            conn.close()
+
 def _seed_initial_data(conn: sqlite3.Connection):
     """从本地数据文件中平滑初始化入库并校正脏数据"""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -562,35 +635,7 @@ def _seed_initial_data(conn: sqlite3.Connection):
     pass
 
     # 3. 种子：航班拓扑基础数据 (flight_routes)
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM flight_routes")
-    if cur.fetchone()[0] == 0:
-        routes_file = DATA_DIR / "routes_seed.json"
-        if not routes_file.exists():
-            routes_file = SEED_FILE
-        if not routes_file.exists():
-            routes_file = DATA_DIR / "flight-routes.json"
-        if routes_file.exists():
-            try:
-                raw_routes = json.loads(routes_file.read_text(encoding="utf-8"))
-                for r in raw_routes:
-                    frm = r.get("from_city") or r.get("from") or ""
-                    to = r.get("to_city") or r.get("to") or ""
-                    f_no = r.get("flight_no") or r.get("flightNo") or ""
-                    if not frm or not to or not f_no: continue
-                    conn.execute("""
-                        INSERT OR IGNORE INTO flight_routes 
-                        (from_city, to_city, from_iata, to_iata, flight_no, dep_time, arr_time, duration, aircraft, frequency, stopover, season)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        frm, to, CITY_IATA_MAP.get(frm, ""), CITY_IATA_MAP.get(to, ""),
-                        f_no, r.get("dep_time") or r.get("depTime", ""), r.get("arr_time") or r.get("arrTime", ""),
-                        r.get("duration", ""), r.get("aircraft", ""), r.get("frequency", ""),
-                        r.get("stopover", ""), r.get("season", "")
-                    ))
-                print(f"[+] 航网排班种子初始化成功：已为新用户自动导入 {len(raw_routes)} 个航线航班！")
-            except Exception as e:
-                print(f"⚠️ 航线班次种子初始化提示: {e}")
+    seed_flight_routes_if_empty(conn)
 
     # 4. 种子：放票日历表 (flight_calendar) - 彻底清除脏数据并精准导入
     # 脏数据清理：如果存在日期非 YYYY-MM-DD 格式，立即清除
@@ -1094,12 +1139,17 @@ def find_flight_no(from_city: str, to_city: str) -> str:
         conn.close()
 
 def get_all_flight_routes() -> list[tuple[str, str]]:
-    """从数据库 flight_routes 表读取全网直飞拓扑列表"""
+    """从数据库 flight_routes 表读取全网直飞拓扑列表 (如遇空表自动触发种子补种)"""
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute("SELECT DISTINCT from_city, to_city FROM flight_routes ORDER BY from_city, to_city")
-        return [(r[0], r[1]) for r in cur.fetchall()]
+        rows = cur.fetchall()
+        if not rows:
+            seed_flight_routes_if_empty(conn)
+            cur.execute("SELECT DISTINCT from_city, to_city FROM flight_routes ORDER BY from_city, to_city")
+            rows = cur.fetchall()
+        return [(r[0], r[1]) for r in rows]
     finally:
         conn.close()
 

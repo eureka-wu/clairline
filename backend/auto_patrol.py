@@ -69,9 +69,13 @@ class RateLimiter:
             self.last_call = time.time()
 
 def load_all_routes() -> list[tuple[str, str]]:
-    """从本地 SQLite 数据库 flight_routes 表加载全国直飞航线"""
+    """从本地 SQLite/MySQL 数据库 flight_routes 表加载全国直飞航线 (若空则自动补种 397 条)"""
     try:
-        return db.get_all_flight_routes()
+        routes = db.get_all_flight_routes()
+        if not routes:
+            db.seed_flight_routes_if_empty()
+            routes = db.get_all_flight_routes()
+        return routes
     except Exception:
         return []
 
