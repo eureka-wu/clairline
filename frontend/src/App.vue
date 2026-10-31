@@ -878,8 +878,14 @@ async function handleDateClick({ from, to, date, targetEl }) {
     }
   } catch (e) {
     popover.value.loading = false;
-    popover.value.visible = true;
-    showToast('查询航班异常，请重试');
+    if (e.needLogin || (e.response && e.response.needLogin)) {
+      popover.value.visible = false;
+      showToast('实时查验具体机位需登录长龙会员账号');
+      openAuthModal(true);
+    } else {
+      popover.value.visible = true;
+      showToast(e.message || '查询航班异常，请重试');
+    }
   }
 }
 
@@ -917,8 +923,14 @@ async function handlePopoverRefresh({ fromCity, toCity, flightDate, targetEl }) 
     }
   } catch (e) {
     popover.value.loading = false;
-    popover.value.visible = true;
-    showToast('刷新超时');
+    if (e.needLogin || (e.response && e.response.needLogin)) {
+      popover.value.visible = false;
+      showToast('实时刷新余票需登录长龙会员账号');
+      openAuthModal(true);
+    } else {
+      popover.value.visible = true;
+      showToast(e.message || '刷新余票异常');
+    }
   }
 }
 

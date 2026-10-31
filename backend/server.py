@@ -369,10 +369,31 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 except Exception as ex:
                     print(f"⚠️ 读取数据库查验记录提示: {ex}")
 
+            # 2. 若库中无记录，或用户点击强制刷新 (需要实时调用长龙官方接口查验最新具体余票)
+            # 安全核心：必须登录后才可以使用自己的 Token 查验！严禁用管理员/后台 Token 兜底给匿名游客查验！
+            user, token = get_current_user_from_request(self)
+            if not user or not (user.get("token") or user.get("cookie")):
+                self.send_json({
+                    "ok": False,
+                    "needLogin": True,
+                    "error": "实时查验具体机位余票需要登录长龙航空会员账号，请先登录！(数据库暂无该日历史快照)"
+                }, 401)
+                return
+
+            from seccard_client import create_user_client
+            user_client = create_user_client(user)
+            if not user_client or not user_client.headers:
+                self.send_json({
+                    "ok": False,
+                    "needLogin": True,
+                    "error": "当前账号登录凭据已失效，请重新获取验证码登录！"
+                }, 401)
+                return
+
             try:
-                flights = client.search_flights(from_code, to_code, date_str)
+                flights = user_client.search_flights(from_code, to_code, date_str)
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                # 核心功能：每次查验结果自动持久化落库
+                # 核心功能：每次查验结果自动持久化落库 (公共共享)
                 try:
                     db.save_seat_query_result(frm, to, date_str, flights)
                 except Exception as ex:
@@ -433,32 +454,30 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
             # 用户新需求：支持单条航线点击即刻向长龙官方刷新最新可兑日历
             if force_refresh:
-                if not client.headers:
-                    client.check_and_reload()
-                if not client.headers:
-                    self.send_json({"ok": False, "error": "当前未登录或缺少会员凭据，请先在右上角使用【手机验证码登录】！"}, 401)
+                user, token = get_current_user_from_request(self)
+                from seccard_client import create_user_client
+                user_client = create_user_client(user) if user else None
+                if not user_client or not user_client.headers:
+                    self.send_json({
+                        "ok": False,
+                        "needLogin": True,
+                        "error": "实时向长龙官方刷新航线日历需要登录会员账号，请先在右上角使用【手机验证码登录】！"
+                    }, 401)
                     return
                 try:
-                    cal = client.get_calendar(from_code, to_code)
+                    cal = user_client.get_calendar(from_code, to_code)
                     db.save_route_calendar(frm, to, cal)
                 except Exception as ex:
                     err_msg = str(ex)
                     if "100001" in err_msg or "403" in err_msg or "未登录" in err_msg or "未登入" in err_msg:
                         mark_auth_expired()
-                        self.send_json({"ok": False, "error": "长龙会员登录凭据已过期 (100001)，请在右上角使用【手机验证码登录】重新续期", "authExpired": True}, 401)
+                        self.send_json({"ok": False, "error": "长龙会员登录凭据已过期 (100001)，请重新登录", "needLogin": True}, 401)
                     else:
                         self.send_json({"ok": False, "error": f"长龙接口请求异常: {err_msg}"}, 500)
                     return
 
+            # 从公共数据库读取纯净有效放票日 (无需任何会员登录，纯粹大盘共享)
             dates = db.get_available_dates(frm, to)
-            # 若库中暂无且有抓包凭据，实时拉取并增量入库
-            if not dates and not force_refresh and client.headers:
-                try:
-                    cal = client.get_calendar(from_code, to_code)
-                    db.save_route_calendar(frm, to, cal)
-                    dates = db.get_available_dates(frm, to)
-                except Exception:
-                    pass
 
             self.send_json({
                 "ok": True, 

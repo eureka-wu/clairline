@@ -102,71 +102,93 @@ class SecCardClient:
             return ("saz", saz)
         return None
 
+    def load_from_profile(self, prof: dict | None):
+        """
+        根据指定用户的专属 profile 载入会员凭证与畅飞卡模板 (多用户完全隔离)
+        """
+        if not prof or not isinstance(prof, dict):
+            self.headers = {}
+            self.template = {}
+            return
+
+        token = prof.get("token") or ""
+        cookie = prof.get("cookie") or ""
+        if not token and not cookie:
+            self.headers = {}
+            self.template = {}
+            return
+
+        custom_headers = prof.get("headers") or {}
+        is_app = True
+        if custom_headers and isinstance(custom_headers, dict):
+            ua = str(custom_headers.get("User-Agent") or custom_headers.get("user-agent") or "")
+            if "micromessenger" in ua.lower() or "servicewechat" in str(custom_headers.get("Referer") or ""):
+                is_app = False
+
+        if custom_headers and isinstance(custom_headers, dict) and len(custom_headers) >= 3:
+            self.headers = dict(custom_headers)
+            if token and "Authorization" not in self.headers and not is_app:
+                self.headers["Authorization"] = token
+            if token and "Cookie" not in self.headers:
+                self.headers["Cookie"] = f"SESSION={token}"
+        else:
+            self.headers = {
+                "Host": "www.loongair.cn",
+                "Accept": "*/*",
+                "AppVersion": "5.1.1",
+                "SubVersion": "1.0.239",
+                "Accept-Language": "zh-CN,zh-Hans;q=0.9",
+                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Provider/finogeeks (iPhone; miniprogram; FinChat; runtimeSdkVersion/2.51.11)",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Cookie": f"SESSION={token}" if token else cookie,
+                "Authorization": ""
+            }
+
+        channel_id = 8 if is_app else 76
+
+        template = dict(prof.get("template") or {})
+        if prof.get("sec_card_grant_tid"):
+            template["secCardGrantTid"] = str(prof["sec_card_grant_tid"])
+        if prof.get("encrypted_user_id"):
+            template["encryptedUserId"] = str(prof["encrypted_user_id"])
+        if prof.get("cert_number"):
+            template["certNumber"] = str(prof["cert_number"])
+        if prof.get("mobile"):
+            template["mobile"] = str(prof["mobile"])
+        template.setdefault("disabilityIDType", 1)
+        template.setdefault("ifNonCompany", False)
+        template.setdefault("tripType", 1)
+        template.setdefault("directionType", "")
+        template.setdefault("bookingScenario", 1)
+        template["SaleChannel"] = channel_id
+        template["saleChannel"] = channel_id
+        template.setdefault("language", "zh-cn")
+        self.template = template
+
     def check_and_reload(self, force: bool = False):
         """
-        100% 优先且唯一从 SQLite 数据库直接载入会员凭证与畅飞卡模板，秒级响应，纯免抓包架构
+        从数据库载入会员凭据 (用于后台常驻巡检机器人等非 Web 请求场景)
         """
         try:
             import db
             prof = db.get_any_active_user_profile() or db.get_user_profile('default')
-            if prof and (prof.get("token") or prof.get("cookie")):
-                token = prof.get("token") or ""
-                custom_headers = prof.get("headers") or {}
-                
-                # 智能识别是否为长龙官方 App 凭据 (默认优先走 App 渠道 8)
-                is_app = True
-                if custom_headers and isinstance(custom_headers, dict):
-                    ua = str(custom_headers.get("User-Agent") or custom_headers.get("user-agent") or "")
-                    if "micromessenger" in ua.lower() or "servicewechat" in str(custom_headers.get("Referer") or ""):
-                        is_app = False
-
-                if custom_headers and isinstance(custom_headers, dict) and len(custom_headers) >= 3:
-                    self.headers = dict(custom_headers)
-                    if token and "Authorization" not in self.headers and not is_app:
-                        self.headers["Authorization"] = token
-                    if token and "Cookie" not in self.headers:
-                        self.headers["Cookie"] = f"SESSION={token}"
-                else:
-                    self.headers = {
-                        "Host": "www.loongair.cn",
-                        "Accept": "*/*",
-                        "AppVersion": "5.1.1",
-                        "SubVersion": "1.0.239",
-                        "Accept-Language": "zh-CN,zh-Hans;q=0.9",
-                        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Provider/finogeeks (iPhone; miniprogram; FinChat; runtimeSdkVersion/2.51.11)",
-                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                        "Cookie": f"SESSION={token}",
-                        "Authorization": ""
-                    }
-
-                channel_id = 8 if is_app else 76
-
-                template = prof.get("template") or {}
-                if prof.get("sec_card_grant_tid"):
-                    template["secCardGrantTid"] = str(prof["sec_card_grant_tid"])
-                if prof.get("encrypted_user_id"):
-                    template["encryptedUserId"] = str(prof["encrypted_user_id"])
-                if prof.get("cert_number"):
-                    template["certNumber"] = str(prof["cert_number"])
-                if prof.get("mobile"):
-                    template["mobile"] = str(prof["mobile"])
-                template.setdefault("disabilityIDType", 1)
-                template.setdefault("ifNonCompany", False)
-                template.setdefault("tripType", 1)
-                template.setdefault("directionType", "")
-                template.setdefault("bookingScenario", 1)
-                template["SaleChannel"] = channel_id
-                template["saleChannel"] = channel_id
-                template.setdefault("language", "zh-cn")
-                self.template = template
-                return
-            else:
-                self.headers = {}
-                self.template = {}
+            self.load_from_profile(prof)
         except Exception as e:
             print(f"[!] 加载会员凭据异常: {e}")
             self.headers = {}
             self.template = {}
+
+def create_user_client(user_profile: dict | None) -> SecCardClient | None:
+    """为特定请求用户创建专属的 SecCardClient，隔离凭据与 Token"""
+    if not user_profile:
+        return None
+    token = user_profile.get("token") or ""
+    cookie = user_profile.get("cookie") or ""
+    if not token and not cookie:
+        return None
+    c = SecCardClient()
+    c.load_from_profile(user_profile)
+    return c
 
     def load_from_json(self, json_path: Path):
         try:

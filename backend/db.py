@@ -160,7 +160,10 @@ def parse_mysql_url(url: str) -> dict:
 
 def adapt_sql_for_mysql(sql: str) -> str:
     """将标准/SQLite SQL 自适应转译为标准 MySQL 8.0/5.7 语法"""
-    # 0. 替换 CREATE INDEX IF NOT EXISTS 为 CREATE INDEX (MySQL 语法兼容)
+    # 0. 剔除 SQL 单行注释，防止注释中的特殊字符（如 (?)）被误替换为占位符 %s
+    sql = re.sub(r'--[^
+]*', '', sql)
+    # 0.1 替换 CREATE INDEX IF NOT EXISTS 为 CREATE INDEX (MySQL 语法兼容)
     sql = re.sub(r'CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS', 'CREATE INDEX', sql, flags=re.IGNORECASE)
     # 1. 替换自增主键语法
     sql = re.sub(r'INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT', 'INT AUTO_INCREMENT PRIMARY KEY', sql, flags=re.IGNORECASE)
@@ -836,7 +839,6 @@ def save_seat_query_result(from_city: str, to_city: str, flight_date: str, fligh
             conn.executemany("""
                 INSERT OR REPLACE INTO seat_queries 
                 (from_city, to_city, flight_date, flight_no, sec_card_left, normal_left, dep_time, arr_time, aircraft, stopover, cabin_code, redeem_price, query_time, time_label)
-                -- 严格按序对应上方 14 个数据库字段的标准 SQLite 参数占位符 (?)，防止 SQL 注入并实现高效批量写入
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, records)
     finally:
