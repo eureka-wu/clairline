@@ -3,6 +3,15 @@ services:
     image: ghcr.io/eureka-wu/clairline:latest
     container_name: clairline
     restart: always
+    # 资源配额限制 (当前日常占用约 24MB，限制 512MB 既轻量又防止异常占用)
+    mem_limit: 512m
+    mem_reservation: 64m
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
     ports:
       # 映射 Web 控制台与 API 端点 (生产环境若使用反向代理可修改为 127.0.0.1:3000:3000)
       - "${CLAIRLINE_PORT_MAPPING:-3000:3000}"
