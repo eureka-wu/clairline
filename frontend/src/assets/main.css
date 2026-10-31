@@ -445,6 +445,61 @@ body.is-map-fullscreen .map-explorer-wrapper {
   border-color: #0284c7;
 }
 
+/* 筛选重置按钮 */
+.btn-filter-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-subtle);
+  background: #ffffff;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-filter-reset:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.btn-filter-reset.is-modified {
+  background: #f0f9ff;
+  color: #0284c7;
+  border-color: #bae6fd;
+}
+
+.btn-filter-reset.is-modified:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+/* 全局筛选提示条 (仅顶部显示一次，视觉统一清爽) */
+.filter-tip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 0.76rem;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px dashed #bae6fd;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.filter-tip-badge .tip-icon {
+  font-size: 0.88rem;
+}
+
 /* 航线卡片 */
 .routes-grid {
   display: flex;
@@ -497,6 +552,36 @@ body.is-map-fullscreen .map-explorer-wrapper {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 2px;
+}
+
+/* 查看返程快捷按钮 */
+.btn-return-trip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0f9ff;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: 4px;
+  align-self: center;
+}
+
+.btn-return-trip:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+}
+
+.btn-return-trip:active {
+  transform: translateY(0);
 }
 
 .flight-schedule-info {

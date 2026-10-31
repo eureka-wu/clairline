@@ -6,6 +6,17 @@
         <span class="city-name">{{ route.from }}</span>
         <span class="arrow-icon">➔</span>
         <span class="city-name">{{ route.to }}</span>
+        <button 
+          type="button" 
+          class="btn-return-trip" 
+          @click.stop="$emit('view-return', { from: route.to, to: route.from })"
+          title="点击一键反转，查看返程航班"
+        >
+          <svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4"/>
+          </svg>
+          <span>查看返程</span>
+        </button>
         <div class="airports-sub">
           {{ originMeta.airport || '国际机场' }} ➔ {{ destMeta.airport || '国际机场' }}
         </div>
@@ -52,7 +63,6 @@
             </template>
           </div>
           <span class="freq-tag">{{ scheduleSpan.frequencyText }}</span>
-          <span style="font-size:0.72rem; color:var(--accent-cyan); font-weight:600;">(点日期查各班余票)</span>
         </template>
       </div>
     </div>
@@ -139,7 +149,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['click-date', 'hover-date', 'leave-date', 'open-drawer', 'refresh-calendar']);
+const emit = defineEmits(['click-date', 'hover-date', 'leave-date', 'open-drawer', 'refresh-calendar', 'view-return']);
 
 function hasCachedData(d) {
   const cacheKey = `${props.route.from}-${props.route.to}-${d}`;

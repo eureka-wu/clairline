@@ -105,6 +105,27 @@
           航距最长
         </button>
       </div>
+
+      <!-- 重置按钮 -->
+      <button 
+        type="button" 
+        class="btn-filter-reset" 
+        :class="{ 'is-modified': isModified }"
+        title="重置为默认「杭州 ➔ 全部直飞」"
+        @click="resetFilter"
+      >
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        <span>重置</span>
+      </button>
+
+      <!-- 全局操作指引徽章 (统一显示一次，避免每个卡片重复) -->
+      <div class="filter-tip-badge hide-on-mobile">
+        <span class="tip-icon">💡</span>
+        <span>点击卡片出行日可查验具体班次机位余票</span>
+      </div>
     </div>
   </div>
 </template>
@@ -147,8 +168,21 @@ const emit = defineEmits([
   'update:onlyAvailable', 
   'update:sortBy',
   'update:sort-by',
-  'swap-failed'
+  'swap-failed',
+  'reset'
 ]);
+
+const isModified = computed(() => {
+  return props.origin !== '杭州' || props.destination !== '全部';
+});
+
+function resetFilter() {
+  emit('update:origin', '杭州');
+  emit('update:destination', '全部');
+  emit('update:onlyAvailable', true);
+  setSort('recent-first');
+  emit('reset');
+}
 
 function setSort(type) {
   emit('update:sortBy', type);

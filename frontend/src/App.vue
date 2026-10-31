@@ -26,6 +26,7 @@
           :available-count="filteredAvailableCount"
           :total-count="filteredTotalCount"
           @swap-failed="showToast"
+          @reset="handleResetFilter"
         />
 
         <!-- 航线卡片列表 -->
@@ -40,6 +41,7 @@
             @leave-date="handleDateLeave"
             @open-drawer="openDrawer"
             @refresh-calendar="handleRefreshCalendar"
+            @view-return="handleViewReturn"
           />
 
           <!-- 首屏加载中状态 (防闪烁骨架卡片) -->
@@ -969,6 +971,26 @@ async function handleRefreshCalendar({ from, to, done }) {
   } finally {
     done();
   }
+}
+
+function handleViewReturn({ from, to }) {
+  origin.value = from;
+  destination.value = to;
+  // 如果反向航线暂无放票但有排班，自动放开“仅看有票”以便用户能查看到该航线卡片并支持点击刷新放票
+  const match = availableRoutes.value.find(r => r.from === from && r.to === to);
+  if (match && (match.availableDaysCount || 0) === 0) {
+    onlyAvailable.value = false;
+  }
+  showToast(`已为您筛选返程：${from} ➔ ${to}`);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function handleResetFilter() {
+  origin.value = '杭州';
+  destination.value = '全部';
+  onlyAvailable.value = true;
+  sortBy.value = 'recent-first';
+  showToast('已重置为默认「杭州 ➔ 全部直飞」');
 }
 
 function openDrawer(route) {
