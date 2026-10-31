@@ -790,18 +790,23 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             mobile = str(body.get("mobile") or "").strip()
             code = str(body.get("code") or "").strip()
             verify_id = str(body.get("verifyId") or "").strip()
-            from loongair_client import login_by_mobile_code
-            res = login_by_mobile_code(mobile, code, verify_id)
-            if res.get("ok"):
-                clear_auth_expired()
-                client.check_and_reload()
-                new_token = res.get("token") or ""
-                extra = {}
-                if new_token:
-                    extra["Set-Cookie"] = f"clairline_token={new_token}; Path=/; Max-Age=2592000; SameSite=Lax"
-                self.send_json(res, 200, extra_headers=extra)
-                return
-            self.send_json(res, 400)
+            try:
+                from loongair_client import login_by_mobile_code
+                res = login_by_mobile_code(mobile, code, verify_id)
+                if res.get("ok"):
+                    clear_auth_expired()
+                    client.check_and_reload()
+                    new_token = res.get("token") or ""
+                    extra = {}
+                    if new_token:
+                        extra["Set-Cookie"] = f"clairline_token={new_token}; Path=/; Max-Age=2592000; SameSite=Lax"
+                    self.send_json(res, 200, extra_headers=extra)
+                    return
+                self.send_json(res, 400)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.send_json({"ok": False, "error": f"登录服务异常: {str(e)}"}, 500)
             return
 
         elif path in ("/api/mcp/rpc", "/mcp/rpc", "/rpc"):

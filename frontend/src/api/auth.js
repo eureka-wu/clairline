@@ -52,7 +52,12 @@ export async function sendSmsCode(mobile, checkParam) {
     },
     body: JSON.stringify({ mobile, checkParam })
   });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error(`验证码服务异常 (HTTP ${res.status})`);
+  }
   if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -66,7 +71,12 @@ export async function loginWithSmsCode(mobile, code, verifyId) {
     },
     body: JSON.stringify({ mobile, code, verifyId })
   });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error(`登录接口异常 (HTTP ${res.status})`);
+  }
   if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   
   // 登录成功：持久化存储平台专属 Session Token 到本地浏览器

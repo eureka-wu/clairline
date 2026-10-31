@@ -171,7 +171,7 @@ def adapt_sql_for_mysql(sql: str) -> str:
     # 4. 替换 ON CONFLICT(...) DO UPDATE SET -> ON DUPLICATE KEY UPDATE
     sql = re.sub(r'ON\s+CONFLICT\s*\([^\)]*\)\s*DO\s+UPDATE\s+SET', 'ON DUPLICATE KEY UPDATE', sql, flags=re.IGNORECASE)
     # 5. 替换 excluded.col_name -> VALUES(col_name)
-    sql = re.sub(r'excluded\.([a-zA-Z0-9_]+)', r'VALUES()', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'excluded\.([a-zA-Z0-9_]+)', lambda m: f'VALUES({m.group(1)})', sql, flags=re.IGNORECASE)
     # 6. 解决 MySQL 报错 1101: BLOB/TEXT 字段禁止设置 DEFAULT 默认值
     # 带有 json/token/cookie/msg/summary 的大文本字段转为 TEXT (剔除 DEFAULT 部分)
     sql = re.sub(r'([a-zA-Z0-9_]*(?:json|token|cookie|msg|summary)[a-zA-Z0-9_]*)\s+TEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+[^\s,\)]+', r'\1 TEXT', sql, flags=re.IGNORECASE)
