@@ -190,14 +190,17 @@ def handle_query_flight_tickets(arguments: dict) -> dict:
         # 格式化提炼数据，方便大模型阅读
         cleaned_flights = []
         for f in flights:
+            sec_left = f.get("secCardLeft") if "secCardLeft" in f else f.get("sec_card_left", f.get("remain_seats", 0))
             cleaned_flights.append({
                 "flight_no": f.get("flight_no") or f.get("flightNo") or "长龙航班",
-                "dep_time": f.get("dep_time") or f.get("departureTime"),
-                "arr_time": f.get("arr_time") or f.get("arriveTime"),
+                "dep_time": f.get("dep_time") or f.get("depTime") or f.get("departureTime"),
+                "arr_time": f.get("arr_time") or f.get("arrTime") or f.get("arriveTime"),
                 "aircraft": f.get("aircraft") or f.get("aircraftType", "A320"),
                 "stopover": f.get("stopover", "直飞"),
-                "remain_seats": f.get("remain_seats", 0),
-                "is_available": (f.get("remain_seats", 0) > 0)
+                "remain_seats": sec_left,
+                "sec_card_left": sec_left,
+                "normal_left": f.get("normalLeft", f.get("normal_left", 0)),
+                "is_available": (sec_left > 0)
             })
 
         return {

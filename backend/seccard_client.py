@@ -178,18 +178,6 @@ class SecCardClient:
             self.headers = {}
             self.template = {}
 
-def create_user_client(user_profile: dict | None) -> SecCardClient | None:
-    """为特定请求用户创建专属的 SecCardClient，隔离凭据与 Token"""
-    if not user_profile:
-        return None
-    token = user_profile.get("token") or ""
-    cookie = user_profile.get("cookie") or ""
-    if not token and not cookie:
-        return None
-    c = SecCardClient()
-    c.load_from_profile(user_profile)
-    return c
-
     def load_from_json(self, json_path: Path):
         try:
             with open(json_path, "r", encoding="utf-8") as f:
@@ -494,3 +482,17 @@ def create_user_client(user_profile: dict | None) -> SecCardClient | None:
                 elif "遵义" in c: c = "遵义"
                 cities.add(c)
         return sorted(cities)
+
+
+def create_user_client(user_profile: dict | None) -> SecCardClient | None:
+    """为特定请求用户创建专属的 SecCardClient，隔离凭据与 Token"""
+    if not user_profile:
+        return None
+    token = user_profile.get("token") or ""
+    cookie = user_profile.get("cookie") or ""
+    if not token and not cookie:
+        return None
+    c = SecCardClient()
+    c.load_from_profile(user_profile)
+    return c
+
