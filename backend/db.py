@@ -358,11 +358,17 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS user_sessions (
                 token VARCHAR(128) PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                last_active TEXT NOT NULL
+                user_id VARCHAR(64) NOT NULL,
+                created_at VARCHAR(32) NOT NULL,
+                last_active VARCHAR(32) NOT NULL
             )
         """)
+        try:
+            # 兼容修正常见 MySQL 字段类型 (防止已存在表将 user_id 建为 TEXT 导致索引失败)
+            if is_mysql_mode():
+                conn.execute("ALTER TABLE user_sessions MODIFY COLUMN user_id VARCHAR(64) NOT NULL")
+        except Exception:
+            pass
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id)")
 
         # 3. 航班直飞班次表 (flight_routes)
@@ -432,17 +438,22 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS patrol_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                batch_id TEXT NOT NULL,
-                patrol_mode TEXT NOT NULL DEFAULT 'hot',
-                from_city TEXT NOT NULL,
-                to_city TEXT NOT NULL,
+                batch_id VARCHAR(64) NOT NULL,
+                patrol_mode VARCHAR(32) NOT NULL DEFAULT 'hot',
+                from_city VARCHAR(32) NOT NULL,
+                to_city VARCHAR(32) NOT NULL,
                 available_days_count INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'SUCCESS',
-                error_msg TEXT NOT NULL DEFAULT '',
+                status VARCHAR(32) NOT NULL DEFAULT 'SUCCESS',
+                error_msg TEXT,
                 duration_ms INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
+                created_at VARCHAR(32) NOT NULL
             )
         """)
+        try:
+            if is_mysql_mode():
+                conn.execute("ALTER TABLE patrol_logs MODIFY COLUMN batch_id VARCHAR(64) NOT NULL")
+        except Exception:
+            pass
         conn.execute("CREATE INDEX IF NOT EXISTS idx_patrol_logs_batch ON patrol_logs(batch_id)")
 
         # 7. 轮询监控任务表 (monitor_tasks)
