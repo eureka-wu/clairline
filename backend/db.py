@@ -194,11 +194,16 @@ class DictRow(dict):
         self._vals = list(d.values())
 
     def __getitem__(self, item):
+        # SHOW COLUMNS 兼容 PRAGMA table_info 的 (cid, name, ...)
+        if "Field" in self and "Type" in self:
+            if item == 1 or item == "name":
+                return self["Field"]
+            if item == 2 or item == "type":
+                return self["Type"]
+            if item == 0 or item == "cid":
+                return 0
         if isinstance(item, int):
             return self._vals[item]
-        # SHOW COLUMNS 兼容 PRAGMA table_info 的 (cid, name, ...)
-        if "Field" in self and item == 1:
-            return self["Field"]
         return super().__getitem__(item)
 
 class MySQLCursorWrapper:
