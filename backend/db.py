@@ -160,6 +160,8 @@ def parse_mysql_url(url: str) -> dict:
 
 def adapt_sql_for_mysql(sql: str) -> str:
     """将标准/SQLite SQL 自适应转译为标准 MySQL 8.0/5.7 语法"""
+    # 0. 替换 CREATE INDEX IF NOT EXISTS 为 CREATE INDEX (MySQL 语法兼容)
+    sql = re.sub(r'CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS', 'CREATE INDEX', sql, flags=re.IGNORECASE)
     # 1. 替换自增主键语法
     sql = re.sub(r'INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT', 'INT AUTO_INCREMENT PRIMARY KEY', sql, flags=re.IGNORECASE)
     # 2. 替换 INSERT OR IGNORE -> INSERT IGNORE
@@ -205,9 +207,16 @@ class MySQLCursorWrapper:
 
     def execute(self, sql: str, params=None):
         adapted = adapt_sql_for_mysql(sql)
-        if params is not None:
-            return self._cur.execute(adapted, params)
-        return self._cur.execute(adapted)
+        try:
+            if params is not None:
+                return self._cur.execute(adapted, params)
+            return self._cur.execute(adapted)
+        except Exception as e:
+            err_str = str(e)
+            # 兼容 MySQL 重复创建索引的 1061 错误 (Duplicate key name)
+            if "1061" in err_str or "Duplicate key name" in err_str:
+                return None
+            raise
 
     def executemany(self, sql: str, params_seq):
         adapted = adapt_sql_for_mysql(sql)
