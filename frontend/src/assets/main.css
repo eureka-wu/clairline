@@ -294,24 +294,32 @@ body.is-map-fullscreen .map-explorer-wrapper {
   color: var(--text-primary);
 }
 
-/* 筛选工具栏 (用户需求：滚动时吸顶固定在顶部，紧贴 Header 下方) */
-.filter-card {
+/* 筛选吸顶外层容器：紧贴 Header 底部 (56px)，毛玻璃背景消除穿透 */
+.filter-sticky-bar {
   position: sticky;
-  top: 60px;
+  top: 56px;
   z-index: 90;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  margin-top: -16px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  background: rgba(248, 250, 252, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.2s ease;
+}
+
+/* 筛选工具栏 (卡片主体) */
+.filter-card {
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 12px 18px;
-  margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.09);
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.05);
   transition: all 0.2s ease;
 }
 
@@ -1143,12 +1151,21 @@ body.is-map-fullscreen .map-explorer-wrapper {
     display: none !important;
   }
 
-  .filter-card {
+  .filter-sticky-bar {
     top: 48px;
+    margin-top: -10px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    background: rgba(248, 250, 252, 0.90);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .filter-card {
     padding: 7px 10px;
     gap: 6px;
     border-radius: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
     flex-direction: column;
     align-items: stretch;
   }

@@ -1,6 +1,7 @@
 <template>
-  <div class="filter-card">
-    <!-- 主航线选择区 (桌面单行，移动端顶行平分) -->
+  <div class="filter-sticky-bar">
+    <div class="filter-card">
+      <!-- 主航线选择区 (桌面单行，移动端顶行平分) -->
     <div class="filter-main-row">
       <div class="filter-cities-pair">
         <span class="filter-label hide-on-mobile">出发地:</span>
@@ -121,10 +122,11 @@
         <span>重置</span>
       </button>
 
-      <!-- 全局操作指引徽章 (统一显示一次，避免每个卡片重复) -->
-      <div class="filter-tip-badge hide-on-mobile">
-        <span class="tip-icon">💡</span>
-        <span>点击卡片出行日可查验具体班次机位余票</span>
+        <!-- 全局操作指引徽章 (统一显示一次，避免每个卡片重复) -->
+        <div class="filter-tip-badge hide-on-mobile">
+          <span class="tip-icon">💡</span>
+          <span>点击卡片出行日可查验具体班次机位余票</span>
+        </div>
       </div>
     </div>
   </div>
