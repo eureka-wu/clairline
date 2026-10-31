@@ -106,11 +106,32 @@ def normalize_iata(name_or_code: str) -> str:
 # -----------------------------------------------------------------------------
 # 双模数据库引擎 (SQLite 3 与 MySQL 原生双模自适应适配器)
 # -----------------------------------------------------------------------------
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+def get_effective_database_url() -> str:
+    """智能解析数据库连接串：优先使用 DATABASE_URL，其次自动读取容器中注入的 MYSQL_HOST 与 MYSQL_ROOT_PASSWORD"""
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if url:
+        return url
+    mysql_host = os.environ.get("MYSQL_HOST", "").strip()
+    mysql_pwd = (
+        os.environ.get("MYSQL_ROOT_PASSWORD")
+        or os.environ.get("MYSQL_PASSWORD")
+        or os.environ.get("DB_PASSWORD")
+        or ""
+    ).strip()
+    if mysql_host or mysql_pwd:
+        mysql_user = os.environ.get("MYSQL_USER", "root").strip()
+        mysql_port = os.environ.get("MYSQL_PORT", "3306").strip()
+        mysql_db = os.environ.get("MYSQL_DATABASE", "loongair").strip()
+        host = mysql_host or "mysql"
+        return f"mysql+pymysql://{mysql_user}:{mysql_pwd}@{host}:{mysql_port}/{mysql_db}?charset=utf8mb4"
+    return ""
+
+DATABASE_URL = get_effective_database_url()
 
 def is_mysql_mode() -> bool:
     """检测当前运行环境是否配置了远程 MySQL 数据库"""
-    return bool(DATABASE_URL and (DATABASE_URL.startswith("mysql://") or DATABASE_URL.startswith("mysql+pymysql://")))
+    curr_url = get_effective_database_url()
+    return bool(curr_url and (curr_url.startswith("mysql://") or curr_url.startswith("mysql+pymysql://")))
 
 def parse_mysql_url(url: str) -> dict:
     """解析 DATABASE_URL 格式 (如 mysql+pymysql://root:pass@mysql:3306/loongair?charset=utf8mb4)"""
@@ -243,7 +264,7 @@ def get_connection():
     """获取数据库连接：优先检测 DATABASE_URL (MySQL)，否则使用本地 SQLite 数据库"""
     if is_mysql_mode():
         import pymysql
-        cfg = parse_mysql_url(DATABASE_URL)
+        cfg = parse_mysql_url(get_effective_database_url())
         conn = pymysql.connect(
             host=cfg["host"],
             port=cfg["port"],
@@ -267,7 +288,7 @@ def init_db():
     if is_mysql_mode():
         try:
             import pymysql
-            cfg = parse_mysql_url(DATABASE_URL)
+            cfg = parse_mysql_url(get_effective_database_url())
             root_conn = pymysql.connect(
                 host=cfg["host"],
                 port=cfg["port"],
