@@ -258,6 +258,11 @@ class MySQLConnectionWrapper:
         cur.execute(sql, params)
         return cur
 
+    def executemany(self, sql: str, params_seq):
+        cur = self.cursor()
+        cur.executemany(sql, params_seq)
+        return cur
+
     def commit(self):
         self._conn.commit()
 
@@ -641,6 +646,7 @@ def _seed_initial_data(conn: sqlite3.Connection):
     # 脏数据清理：如果存在日期非 YYYY-MM-DD 格式，立即清除
     conn.execute("DELETE FROM flight_calendar WHERE flight_date NOT LIKE '____-__-__'")
 
+    cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM flight_calendar")
     if cur.fetchone()[0] == 0:
         cal_file = DATA_DIR / "full_network_calendar.json"
