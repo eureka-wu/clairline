@@ -6,6 +6,7 @@
 
 import sys
 import json
+from datetime import datetime
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -64,7 +65,7 @@ def sync_current_user_profile() -> dict:
         "cards_count": prof.get("cards_count", 0),
         "points": prof.get("points", 0),
         "is_verified": prof.get("is_verified", 0),
-        "updated_at": cred.get("update_time", "")
+        "updated_at": prof.get("updated_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     db.save_user_profile(prof_db)
     print("[+] 会员全量资料已成功持久化至 SQLite user_profile 表！")

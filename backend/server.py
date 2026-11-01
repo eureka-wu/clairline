@@ -36,7 +36,8 @@ if str(BACKEND_DIR) not in sys.path:
 import auto_patrol
 import threading
 import db
-from seccard_client import SecCardClient, CITY_IATA, IATA_CITY
+import seccard_client
+from seccard_client import SecCardClient, CITY_IATA, IATA_CITY, create_user_client
 from scheduler import MonitorScheduler
 
 AUTH_EXPIRED = False
@@ -265,6 +266,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             import traceback
             traceback.print_exc()
+            try:
+                self.send_error(500, "Internal Server Error")
+            except Exception:
+                pass
             if sys.stdout and hasattr(sys.stdout, "flush"):
                 try: sys.stdout.flush()
                 except Exception: pass
@@ -379,7 +384,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 }, 401)
                 return
 
-            from seccard_client import create_user_client
             user_client = create_user_client(user)
             if not user_client or not user_client.headers:
                 self.send_json({
@@ -454,7 +458,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             # 用户新需求：支持单条航线点击即刻向长龙官方刷新最新可兑日历
             if force_refresh:
                 user, token = get_current_user_from_request(self)
-                from seccard_client import create_user_client
                 user_client = create_user_client(user) if user else None
                 if not user_client or not user_client.headers:
                     self.send_json({
@@ -748,7 +751,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return
             
             # 使用当前登录用户的专属凭证创建客户端，绝不滥用全局默认 Token
-            user_client = seccard_client.create_user_client(user)
+            user_client = create_user_client(user)
             if not user_client or not user_client.headers:
                 self.send_json({
                     "ok": False,
