@@ -539,6 +539,20 @@ def init_db():
         with conn:
             conn.execute("DELETE FROM flight_calendar WHERE flight_date < ?", (min_date,))
             conn.execute("DELETE FROM seat_queries WHERE flight_date < ?", (min_date,))
+            # 自动清理历史 user_profile 中的 default 冗余记录
+            conn.execute("DELETE FROM user_profile WHERE user_id = 'default'")
+        # 自动收敛 user_sessions：每个用户只保留最新活跃的一个 session
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM user_sessions GROUP BY user_id HAVING COUNT(*) > 1")
+        dups = cur.fetchall()
+        for row in dups:
+            uid = row[0]
+            cur.execute("SELECT token FROM user_sessions WHERE user_id = ? ORDER BY last_active DESC, created_at DESC LIMIT 1", (uid,))
+            latest = cur.fetchone()
+            if latest:
+                keep_token = latest[0]
+                with conn:
+                    conn.execute("DELETE FROM user_sessions WHERE user_id = ? AND token != ?", (uid, keep_token))
     except Exception as e:
         print(f"⚠️ 自动清理历史过期日期提示: {e}")
     conn.close()
@@ -1323,12 +1337,14 @@ if __name__ == "__main__":
 import secrets
 
 def create_user_session(user_id: str) -> str:
-    """为指定用户生成一个安全随机的平台 Session Token，并持久化至 user_sessions 表"""
+    """为指定用户生成一个安全随机的平台 Session Token，并持久化至 user_sessions 表 (单用户单 Session 模式)"""
     token = "cla_" + secrets.token_urlsafe(32)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_connection()
     try:
         with conn:
+            # 单会话模式：清空该用户历史所有的旧 Token，确保每个 user_id 在表中严格只有 1 条最新活跃记录
+            conn.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
             conn.execute(
                 "INSERT OR REPLACE INTO user_sessions (token, user_id, created_at, last_active) VALUES (?, ?, ?, ?)",
                 (token, user_id, now_str, now_str)

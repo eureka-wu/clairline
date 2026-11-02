@@ -378,8 +378,7 @@ def login_by_mobile_code(mobile: str, code: str, verify_id: str) -> dict:
         # 多用户平台隔离：以用户手机号作为唯一 user_id 持久化存储
         user_id = mobile
         db.save_user_profile(profile, user_id=user_id)
-        # 兼容单机默认环境
-        db.save_user_profile(profile, user_id="default")
+        # 已完全切换为多用户手机号隔离，移除冗余的 default 镜像
         # 签发专属 Session Token
         platform_token = db.create_user_session(user_id)
         _PENDING_SESSIONS.pop(mobile, None)
