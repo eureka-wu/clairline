@@ -644,6 +644,7 @@ def _seed_initial_data(conn: sqlite3.Connection):
         ("night_start_hour", "0", "夜间静默开始时间(点)"),
         ("night_end_hour", "7", "夜间静默结束时间(点)"),
         ("full_patrol_times", "09:00,20:00", "每日全量航线普查定时点(HH:mm, 至多3个以逗号分隔)"),
+        ("auto_first_login_patrol_enabled", "1", "每日首位登录会员自动触发全网普查(1开启/0关闭)"),
     ]
     for k, v, desc in default_configs:
         conn.execute("""
@@ -769,6 +770,38 @@ def set_patrol_switches(hot_enabled: bool | None = None, all_enabled: bool | Non
     if updates:
         update_patrol_config(updates)
     return get_patrol_switches()
+
+def can_claim_daily_first_patrol(today_str: str) -> bool:
+    """检查今日是否尚未触发首位登录会员全网全量普查"""
+    cfg = get_patrol_config()
+    if cfg.get("auto_first_login_patrol_enabled", "1") not in ("1", "true", "True"):
+        return False
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT config_value FROM patrol_config WHERE config_key = 'last_daily_first_patrol_date'")
+        row = cur.fetchone()
+        last_date = ""
+        if row:
+            last_date = row["config_value"] if isinstance(row, dict) else row[0]
+        return last_date != today_str
+    finally:
+        conn.close()
+
+def record_daily_first_patrol(today_str: str) -> bool:
+    """持久化记录今日首登全量普查已触发日期"""
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("""
+                INSERT INTO patrol_config (config_key, config_value, description, updated_at)
+                VALUES ('last_daily_first_patrol_date', ?, '每日首位登录用户全网全量普查触发日期 (YYYY-MM-DD)', ?)
+                ON CONFLICT(config_key) DO UPDATE SET config_value = excluded.config_value, updated_at = excluded.updated_at
+            """, (today_str, now_str))
+        return True
+    finally:
+        conn.close()
 
 def get_min_bookable_date() -> str:
     """

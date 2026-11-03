@@ -190,6 +190,58 @@ GITHUB_REPO = "eureka-wu/clairline"
 client = SecCardClient()
 scheduler = MonitorScheduler(client)
 
+def start_daily_first_patrol_if_needed(user_profile: dict) -> bool:
+    """
+    业务新特性：每天第一个会员登录成功时，借力其全新鲜活凭证在后台异步执行一次全网全量普查 (397条)
+    - 每日严格仅触发 1 次；
+    - 纯后台异步守护线程执行，零阻塞用户登录与浏览；
+    - 普查结果增量落库至 SQLite/MySQL 数据库，全平台所有用户共享最新放票日历。
+    """
+    if not user_profile or not user_profile.get("token"):
+        return False
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if not db.can_claim_daily_first_patrol(today_str):
+        return False
+
+    if auto_patrol.PATROL_STATE.get("running"):
+        return False
+
+    user_client = create_user_client(user_profile)
+    if not user_client or not user_client.headers:
+        return False
+
+    # 轻量健康自检探针：确保其长龙官方 Token 真实有效存活
+    try:
+        user_client.get_calendar("杭州", "深圳")
+    except Exception as e:
+        err_text = str(e)
+        if "100001" in err_text or "403" in err_text or "未登录" in err_text:
+            mark_auth_expired()
+        return False
+
+    # 探针通过，原子登记今日已触发
+    db.record_daily_first_patrol(today_str)
+
+    user_name = user_profile.get("user_name") or user_profile.get("mobile") or "会员"
+    print("\n" + "=" * 65)
+    print(f"🎉 捕获今日首位登录会员 [{user_name}]！")
+    print(f"🚀 系统已自动借力其全新鲜活凭证，在后台启动今日全网全量普查 (约397条)...")
+    print("=" * 65 + "\n")
+
+    def daily_patrol_worker():
+        try:
+            auto_patrol.run_patrol_cycle(user_client, mode="all")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ 今日首登全网全量普查顺利完成！全网最新放票日历已全量覆写落库。")
+        except Exception as ex:
+            print(f"⚠️ 今日首登全网全量普查异常中断: {ex}")
+            auto_patrol.PATROL_STATE["running"] = False
+            auto_patrol.PATROL_STATE["status_text"] = f"今日首登全网普查中断: {ex}"
+
+    t = threading.Thread(target=daily_patrol_worker, daemon=True)
+    t.start()
+    return True
+
 def check_github_update():
     """向 GitHub Releases API 检索最新版本与发布日志 (方案 A)"""
     import urllib.request, re
@@ -562,7 +614,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/auth/status":
             user, _ = get_current_user_from_request(self)
-            self.send_json(get_auth_status(user))
+            status_data = get_auth_status(user)
+            if user and user.get("token") and not status_data.get("is_expired"):
+                try:
+                    start_daily_first_patrol_if_needed(user)
+                except Exception:
+                    pass
+            self.send_json(status_data)
             return
 
         elif path == "/api/system/check-update":
@@ -849,6 +907,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     extra = {}
                     if new_token:
                         extra["Set-Cookie"] = f"clairline_token={new_token}; Path=/; Max-Age=2592000; SameSite=Lax"
+
+                    user_id = res.get("user", {}).get("user_id") or mobile
+                    user_profile = db.get_user_profile(user_id) or res.get("user") or {}
+                    if not user_profile.get("token") and res.get("user", {}).get("token"):
+                        user_profile["token"] = res["user"]["token"]
+                    if not user_profile.get("headers") and res.get("user", {}).get("headers"):
+                        user_profile["headers"] = res["user"]["headers"]
+
+                    triggered = start_daily_first_patrol_if_needed(user_profile)
+                    if triggered:
+                        res["daily_patrol_triggered"] = True
+                        res["message"] = f"欢迎回来，{user_profile.get('user_name', '会员')}！您是今日首位登录会员，后台已自动开启今日全网全量普查与最新放票同步。"
+
                     self.send_json(res, 200, extra_headers=extra)
                     return
                 self.send_json(res, 400)
